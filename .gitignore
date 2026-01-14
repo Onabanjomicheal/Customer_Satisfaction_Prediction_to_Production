@@ -134,3 +134,19 @@ mlruns/
 # ===============================
 *.pkl
 *.joblib
+
+
+# ===============================
+# Secrets & credentials
+# ===============================
+.env.*
+credentials.json
+token.json
+kaggle.json
+
+# ===============================
+# Local scratch
+# ===============================
+tmp/
+scratch/
+*.bak
