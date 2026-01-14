@@ -1,0 +1,17 @@
+# ======================================
+# Model & Training Parameters
+# ======================================
+BATCH_SIZE: 32
+EPOCHS: 20
+LEARNING_RATE: 0.001
+RANDOM_STATE: 42
+
+# Model-specific
+MAX_DEPTH: 5        # for tree-based models like XGBoost, LightGBM
+N_ESTIMATORS: 100
+
+# ======================================
+# Dataset Split / Misc
+# ======================================
+TEST_SPLIT: 0.2
+TARGET_COLUMN: "satisfaction_score"   # or whatever the target column is

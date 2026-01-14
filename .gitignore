@@ -1,0 +1,136 @@
+# ===============================
+# Python bytecode & cache
+# ===============================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ===============================
+# C extensions
+# ===============================
+*.so
+
+# ===============================
+# Distribution / packaging
+# ===============================
+.Python
+build/
+dist/
+develop-eggs/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===============================
+# PyInstaller
+# ===============================
+*.manifest
+*.spec
+
+# ===============================
+# Logs & test reports
+# ===============================
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+nosetests.xml
+.pytest_cache/
+.hypothesis/
+
+# ===============================
+# Jupyter / IPython
+# ===============================
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# ===============================
+# Virtual environments
+# ===============================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ===============================
+# IDE / Editors
+# ===============================
+.spyderproject
+.spyproject
+.ropeproject
+.mypy_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+
+# PyCharm / JetBrains
+.idea/
+
+# ===============================
+# OS
+# ===============================
+.DS_Store
+Thumbs.db
+
+# ===============================
+# Data (tracked via DVC)
+# ===============================
+data/
+dataset/
+datasets/
+*.csv
+*.zip
+*.parquet
+*.feather
+
+# ===============================
+# ML Artifacts (tracked via DVC / MLflow)
+# ===============================
+artifacts/
+models/
+logs/
+runs/
+mlruns/
+
+# ===============================
+# DVC
+# ===============================
+.dvc/cache/
+.dvc/tmp/
+
+# ===============================
+# ZenML
+# ===============================
+.zenml/
+
+# ===============================
+# Streamlit
+# ===============================
+.streamlit/secrets.toml
+
+# ===============================
+# Research outputs
+# ===============================
+*.pkl
+*.joblib
