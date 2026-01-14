@@ -150,3 +150,8 @@ kaggle.json
 tmp/
 scratch/
 *.bak
+
+# ===============================
+# Research / Experiments
+# ===============================
+research/
