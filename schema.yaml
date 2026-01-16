@@ -1,0 +1,123 @@
+# 1. Customers
+olist_customers_dataset.csv:
+  columns:
+    customer_id: object
+    customer_unique_id: object
+    customer_zip_code_prefix: int64
+    customer_city: object
+    customer_state: object
+  constraints:
+    critical_columns:
+      - customer_id
+      - customer_unique_id
+      - customer_zip_code_prefix
+
+# 2. Geolocation
+olist_geolocation_dataset.csv:
+  columns:
+    geolocation_zip_code_prefix: int64
+    geolocation_lat: float64
+    geolocation_lng: float64
+    geolocation_city: object
+    geolocation_state: object
+  constraints:
+    critical_columns:
+      - geolocation_zip_code_prefix
+      - geolocation_lat
+      - geolocation_lng
+
+# 3. Order Items
+olist_order_items_dataset.csv:
+  columns:
+    order_id: object
+    order_item_id: int64
+    product_id: object
+    seller_id: object
+    shipping_limit_date: object
+    price: float64
+    freight_value: float64
+  constraints:
+    min_max:
+      price:
+        min: 0.85
+        max: 7000.0
+      freight_value:
+        min: 0.0
+        max: 500.0
+    critical_columns:
+      - order_id
+      - order_item_id
+      - product_id
+      - price
+
+# 4. Orders
+olist_orders_dataset.csv:
+  columns:
+    order_id: object
+    customer_id: object
+    order_status: object
+    order_purchase_timestamp: object
+    order_approved_at: object
+    order_delivered_carrier_date: object
+    order_delivered_customer_date: object
+    order_estimated_delivery_date: object
+  constraints:
+    allowed_values:
+      order_status:
+        - delivered
+        - shipped
+        - canceled
+        - unavailable
+        - invoiced
+        - processing
+        - created
+        - approved
+    critical_columns:
+      - order_id
+      - customer_id
+      - order_status
+
+# 5. Products
+olist_products_dataset.csv:
+  columns:
+    product_id: object
+    product_category_name: object
+    product_name_lenght: float64
+    product_description_lenght: float64
+    product_photos_qty: float64
+    product_weight_g: float64
+    product_length_cm: float64
+    product_height_cm: float64
+    product_width_cm: float64
+  constraints:
+    max_null_count: 610
+    min_max:
+      product_weight_g:
+        min: 1.0
+    critical_columns:
+      - product_id
+      - product_category_name
+
+# 6. Reviews
+olist_order_reviews_dataset.csv:
+  columns:
+    review_id: object
+    order_id: object
+    review_score: int64
+    review_comment_title: object
+    review_comment_message: object
+    review_creation_date: object
+    review_answer_timestamp: object
+  constraints:
+    min_max:
+      review_score:
+        min: 1
+        max: 5
+    critical_columns:
+      - order_id
+      - review_score
+    max_null_count: 210
+
+# Target
+target_column:
+  name: review_score

@@ -1,31 +1,28 @@
 from pathlib import Path
-import os
-from customerSatisfaction.constants import CONFIG_FILE_PATH, PARAMS_FILE_PATH
-from customerSatisfaction.utils.common import read_yaml, create_directories, save_json
-from customerSatisfaction.entity.config_entity import (
-    DataIngestionConfig,
-    DataValidationConfig,
-    DataTransformationConfig,
-    TrainingConfig,
-    EvaluationConfig
-)
-
+from customerSatisfaction.utils.common import read_yaml, create_directories
+from customerSatisfaction.entity.config_entity import DataIngestionConfig, DataValidationConfig
+from customerSatisfaction.constants import CONFIG_FILE_PATH, PARAMS_FILE_PATH, SCHEMA_FILE_PATH
 
 class ConfigurationManager:
-    def __init__(self, config_filepath="config/config.yaml", params_filepath="params.yaml"):
-        self.config = read_yaml(Path(config_filepath))
-        self.params = read_yaml(Path(params_filepath))
+    """
+    Loads YAML files and provides DataIngestionConfig and DataValidationConfig.
+    Schema is now included inside DataValidationConfig for uniform access.
+    """
+
+    def __init__(self,
+                 config_filepath: str = CONFIG_FILE_PATH,
+                 params_filepath: str = PARAMS_FILE_PATH,
+                 schema_filepath: str = SCHEMA_FILE_PATH):
+        self.config = dict(read_yaml(config_filepath))   # plain dict
+        self.params = dict(read_yaml(params_filepath))
+        self.schema = dict(read_yaml(schema_filepath))
 
         # Ensure artifacts root exists
-        create_directories([self.config['artifacts_root']])
+        create_directories([self.config.get('artifacts_root', 'artifacts')])
 
-    # -------------------------
-    # Stage 01: Data Ingestion
-    # -------------------------
     def get_data_ingestion_config(self) -> DataIngestionConfig:
         config = self.config['data_ingestion']
         create_directories([config['root_dir']])
-
         return DataIngestionConfig(
             root_dir=Path(config['root_dir']),
             source_URL=config['source_URL'],
@@ -33,59 +30,18 @@ class ConfigurationManager:
             unzip_dir=Path(config['unzip_dir'])
         )
 
-    # -------------------------
-    # Stage 02: Data Validation
-    # -------------------------
     def get_data_validation_config(self) -> DataValidationConfig:
+        """
+        Returns DataValidationConfig with schema embedded.
+        """
         config = self.config['data_validation']
-        create_directories([config['root_dir']])
-
+        create_directories([config['root_dir'], config['raw_validated_dir']])
         return DataValidationConfig(
             root_dir=Path(config['root_dir']),
-            raw_data_dir=Path(self.config['data_ingestion']['unzip_dir']),
-            validated_data_file=Path(config['validated_data_file'])
-        )
-
-
-    # -------------------------
-    # Stage 03: Data Transformation
-    # -------------------------
-    def get_data_transformation_config(self) -> DataTransformationConfig:
-        config = self.config['data_transformation']
-        create_directories([config['root_dir']])
-
-        return DataTransformationConfig(
-            root_dir=Path(config['root_dir']),
-            transformed_train_file=Path(config['transformed_train_file']),
-            transformed_test_file=Path(config['transformed_test_file']),
-            preprocessor_object_file=Path(config['preprocessor_object_file'])
-        )
-
-    # -------------------------
-    # Stage 04: Training
-    # -------------------------
-    def get_training_config(self) -> TrainingConfig:
-        config = self.config['training']
-        create_directories([config['root_dir']])
-
-        return TrainingConfig(
-            root_dir=Path(config['root_dir']),
-            trained_model_file=Path(config['trained_model_file']),
-            model_config=self.params['MODEL_CONFIG'],
-            training_data=Path(config['training_data'])
-        )
-
-    # -------------------------
-    # Stage 05: Evaluation
-    # -------------------------
-    def get_evaluation_config(self) -> EvaluationConfig:
-        config = self.config['evaluation']
-        create_directories([config['root_dir']])
-
-        return EvaluationConfig(
-            root_dir=Path(config['root_dir']),
-            trained_model_file=Path(config['trained_model_file']),
-            test_data=Path(config['test_data']),
-            evaluation_report_file=Path(config['evaluation_report_file']),
-            metrics=None
+            unzip_data_dir=Path(config['unzip_data_dir']),
+            STATUS_FILE=str(config['STATUS_FILE']),
+            report_file=Path(config['report_file']),
+            raw_validated_dir=Path(config['raw_validated_dir']),
+            schema_path=Path(config['schema_path']),
+            full_schema=self.schema  # embed the schema directly
         )

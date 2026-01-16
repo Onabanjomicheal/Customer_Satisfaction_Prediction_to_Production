@@ -1,101 +1,134 @@
-import logging
+import os
 import pandas as pd
+import logging
 from pathlib import Path
-from typing import List
 from customerSatisfaction.entity.config_entity import DataValidationConfig
-from customerSatisfaction.utils.common import create_directories, get_size, save_json
-from customerSatisfaction.config.configuration import ConfigurationManager
+from customerSatisfaction.utils.common import save_json
 
-# Logging setup
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s]: %(message)s:')
 
-
 class DataValidation:
-    """
-    Stage 02: Data Validation
-    """
-
     def __init__(self, config: DataValidationConfig):
         self.config = config
-        create_directories([self.config.root_dir])
+        self.schema = config.full_schema  # schema embedded in config now
+        self.report = {}  # store detailed validation results per dataset
 
-    def _log_columns(self, df: pd.DataFrame, file_name: str) -> None:
-        """Log the columns of a single CSV file"""
-        logging.info(f"Columns in {file_name}: {list(df.columns)}")
+        # Ensure validated data directory exists and assign to instance
+        self.validated_data_dir = Path(self.config.raw_validated_dir)
+        self.validated_data_dir.mkdir(parents=True, exist_ok=True)
 
-    def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Drop duplicates and fill missing numeric values"""
-        before_rows = len(df)
-        df = df.drop_duplicates()
-        logging.info(f"Dropped {before_rows - len(df)} duplicate rows")
+    def _validate_column_types(self, data: pd.DataFrame, expected_columns: dict, dataset_name: str) -> bool:
+        status = True
+        for col, expected_type in expected_columns.items():
+            if col in data.columns:
+                actual_type = str(data[col].dtype)
+                if actual_type != expected_type:
+                    status = False
+                    logging.error(f"Column '{col}' in {dataset_name} expected type '{expected_type}', got '{actual_type}'")
+                else:
+                    logging.info(f"Column '{col}' type validated in {dataset_name}")
+        return status
 
-        numeric_cols = df.select_dtypes(include="number").columns
-        for col in numeric_cols:
-            if df[col].isnull().sum() > 0:
-                median_value = df[col].median()
-                df[col].fillna(median_value, inplace=True)
-                logging.info(f"Filled missing values in '{col}' with median={median_value}")
+    def _validate_constraints(self, data: pd.DataFrame, constraints: dict, dataset_name: str) -> bool:
+        status = True
+        if not constraints:
+            return status
 
-        return df
+        # Numeric min/max checks
+        for col, bound in constraints.get("min_max", {}).items():
+            if col in data.columns:
+                if data[col].min() < bound.get("min", float('-inf')) or data[col].max() > bound.get("max", float('inf')):
+                    status = False
+                    logging.error(f"Column '{col}' in {dataset_name} violates min/max constraints")
 
-    def run_validation(self) -> List[Path]:
-        """Perform full validation and return validated file paths"""
-        raw_data_dir = Path(self.config.raw_data_dir)
-        csv_files = list(raw_data_dir.glob("*.csv"))
-        if not csv_files:
-            raise FileNotFoundError(f"No CSV files found in {raw_data_dir}")
+        # Allowed values checks
+        for col, allowed in constraints.get("allowed_values", {}).items():
+            if col in data.columns:
+                invalid_values = set(data[col].unique()) - set(allowed)
+                if invalid_values:
+                    status = False
+                    logging.error(f"Column '{col}' in {dataset_name} contains invalid values: {invalid_values}")
 
-        logging.info(f"Found {len(csv_files)} CSV files for validation")
+        # Critical columns must not be null
+        for col in constraints.get("critical_columns", []):
+            if col in data.columns:
+                null_count = data[col].isna().sum()
+                if null_count > 0:
+                    status = False
+                    logging.error(f"Critical column '{col}' in {dataset_name} has {null_count} nulls")
 
-        validated_files = []
-        cleaned_dfs = []
+        # Max null check
+        max_null = constraints.get("max_null_count")
+        if max_null is not None:
+            total_nulls = data.isna().sum().sum()
+            if total_nulls > max_null:
+                status = False
+                logging.error(f"Dataset {dataset_name} exceeds max nulls: {total_nulls} > {max_null}")
 
-        for csv_file in csv_files:
-            logging.info(f"Validating file: {csv_file.name}")
-            df = pd.read_csv(csv_file)
+        return status
 
-            if df.empty:
-                logging.warning(f"{csv_file.name} is empty")
+    def validate_all_columns(self) -> bool:
+        overall_status = True
+        data_dir = Path(self.config.unzip_data_dir)
+        if not data_dir.exists():
+            raise FileNotFoundError(f"Data directory {data_dir} does not exist")
+
+        all_files = os.listdir(data_dir)
+        for file_name in all_files:
+            file_name_norm = file_name.strip()
+            if not file_name_norm.endswith(".csv"):
+                logging.info(f"Skipping non-CSV file: {file_name_norm}")
                 continue
 
-            # Log columns
-            self._log_columns(df, csv_file.name)
+            dataset_schema = self.schema.get(file_name_norm)
+            if dataset_schema is None:
+                logging.info(f"Skipping {file_name_norm}: Not defined in schema.yaml")
+                continue
 
-            # Clean data
-            cleaned_df = self._clean_dataframe(df)
+            if "columns" not in dataset_schema:
+                raise ValueError(f"'columns' key missing in schema for {file_name_norm}")
 
-            output_file = Path(self.config.root_dir) / f"{csv_file.stem}_cleaned.csv"
-            cleaned_df.to_csv(output_file, index=False)
-            validated_files.append(output_file)
-            cleaned_dfs.append(cleaned_df)
+            data = pd.read_csv(data_dir / file_name_norm)
+            file_status = True
 
-            logging.info(f"Saved cleaned file: {output_file} (size: {get_size(output_file)})")
+            # Column existence check
+            for col in dataset_schema["columns"].keys():
+                if col not in data.columns:
+                    file_status = False
+                    logging.error(f"Column '{col}' missing in {file_name_norm}")
+                else:
+                    logging.info(f"Column '{col}' validated in {file_name_norm}")
 
-        # Merge all CSVs if needed (optional)
-        if cleaned_dfs:
-            merged_df = pd.concat(cleaned_dfs, ignore_index=True)
-            merged_df.to_csv(self.config.validated_data_file, index=False)
-            logging.info(f"Merged validated dataset saved to {self.config.validated_data_file} "
-                         f"(size: {get_size(self.config.validated_data_file)})")
+            # Column type check
+            file_status &= self._validate_column_types(data, dataset_schema["columns"], file_name_norm)
 
-        # Save validation status
-        status = {
-            "status": "success",
-            "num_files_processed": len(validated_files),
-            "validated_files": [str(f) for f in validated_files],
-            "merged_file": str(self.config.validated_data_file) if cleaned_dfs else None
-        }
-        save_json(path=Path(self.config.root_dir) / "validation_status.json", data=status)
+            # Constraints check
+            file_status &= self._validate_constraints(data, dataset_schema.get("constraints", {}), file_name_norm)
 
-        logging.info("Data Validation stage completed successfully")
-        return validated_files
+            # Save validated dataset
+            validated_path = self.validated_data_dir / file_name_norm
+            data.to_csv(validated_path, index=False)
 
+            # Add to report
+            self.report[file_name_norm] = {
+                "columns": list(data.columns),
+                "status": file_status
+            }
 
-class DataValidationPipeline:
-    """Wrapper pipeline for stage 2"""
-    def __init__(self):
-        self.config = ConfigurationManager().get_data_validation_config()
-        self.validator = DataValidation(self.config)
+            overall_status &= file_status
 
-    def main(self) -> List[Path]:
-        return self.validator.run_validation()
+        # Save JSON report
+        report_path = Path(self.config.report_file)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        save_json(report_path, self.report)
+
+        # Write overall status
+        status_file_path = Path(self.config.STATUS_FILE)
+        status_file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(status_file_path, 'w') as f:
+            f.write(f"Validation status: {overall_status}")
+
+        logging.info(f"Data Validation complete. Overall status: {overall_status}")
+        logging.info(f"Validated datasets saved at: {self.validated_data_dir}")
+        logging.info(f"Detailed report saved at: {report_path}")
+        return overall_status

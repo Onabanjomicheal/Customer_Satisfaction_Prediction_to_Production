@@ -1,42 +1,15 @@
-# Root artifact directory
 artifacts_root: artifacts
 
-# -------------------------------
-# Data Ingestion
-# -------------------------------
 data_ingestion:
   root_dir: artifacts/data_ingestion
-  source_URL: https://drive.google.com/file/d/1_M8ZzFem1uUnG6d3W_BDTA9B_ewYz0SQ/view?usp=sharing
+  source_URL: "https://drive.google.com/file/d/1_M8ZzFem1uUnG6d3W_BDTA9B_ewYz0SQ/view?usp=sharing"
   local_data_file: artifacts/data_ingestion/data.zip
   unzip_dir: artifacts/data_ingestion/customer_data
 
-# -------------------------------
-# Data Validation & Transformation
-# -------------------------------
 data_validation:
   root_dir: artifacts/data_validation
-  validated_data_file: artifacts/data_validation/validated_data.csv
-
-data_transformation:
-  root_dir: artifacts/data_transformation
-  transformed_train_file: artifacts/data_transformation/train.csv
-  transformed_test_file: artifacts/data_transformation/test.csv
-  preprocessor_object_file: artifacts/data_transformation/preprocessor.pkl
-
-# -------------------------------
-# Model Training
-# -------------------------------
-training:
-  root_dir: artifacts/training
-  trained_model_file: artifacts/training/customer_model.pkl
-  model_config: 
-    n_estimators: 100
-    max_depth: 7
-    random_state: 42
-
-# -------------------------------
-# Model Evaluation
-# -------------------------------
-evaluation:
-  root_dir: artifacts/evaluation
-  report_file: artifacts/evaluation/evaluation_report.yaml
+  unzip_data_dir: artifacts/data_ingestion/customer_data
+  STATUS_FILE: artifacts/data_validation/status.txt
+  report_file: artifacts/data_validation/report.json
+  raw_validated_dir: artifacts/data_validation/validated_data
+  schema_path: schema.yaml

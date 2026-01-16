@@ -1,52 +1,90 @@
-# Customer Satisfaction Prediction
+# Customer Satisfaction Prediction (End-to-End MLOps)
+
+## Project Overview
+
+This project implements an end-to-end Machine Learning pipeline for predicting customer satisfaction, following production-grade MLOps practices.  
+The system is modular, configuration-driven, and designed to ensure data quality before any transformation or modeling occurs.
+
+The pipeline emphasizes:
+- Reproducibility
+- Data quality enforcement
+- Clear separation of concerns
+- Production-oriented structure
+
+---
+
+## Workflow Architecture
+
+The project follows a clean, scalable workflow:
+
+1. Update `config.yaml`
+2. Update `secrets.yaml` (Optional)
+3. Update `params.yaml`
+4. Update entities
+5. Update the configuration manager
+6. Update components
+7. Update pipeline stages
+8. Update `main.py`
+9. Update `dvc.yaml`
+10. Update `app.py`
+
+---
+
+## Pipeline Stages
+
+### Stage 01 – Data Ingestion
+- Reads raw datasets
+- Organizes artifacts into structured directories
+- Controlled via configuration files
+
+---
+
+### Stage 02 – Data Validation (Completed)
+
+This stage ensures data quality before downstream processing.
+
+**Validation checks include:**
+- Column existence validation
+- Data type enforcement
+- Numeric min/max bounds
+- Allowed categorical values
+- Critical columns null checks
+- Maximum null threshold per dataset
+- Schema-driven validation using `schema.yaml`
+
+**Outputs:**
+- Validated datasets:
 
 
-## Workflows
 
-1. Update config.yaml
-2. Update secrets.yaml [Optional]
-3. Update params.yaml
-4. Update the entity
-5. Update the configuration manager in src config
-6. Update the components
-7. Update the pipeline 
-8. Update the main.py
-9. Update the dvc.yaml
-10. app.py
+- Overall validation status file
 
-# How to run?
-### STEPS:
+**Observed result:**
+- Most datasets passed validation
+- `olist_products_dataset.csv` was correctly flagged due to data quality issues
+- Datasets not defined in the schema were safely skipped and logged
 
-Clone the repository
+This behavior reflects production-safe validation and failure detection.
 
+---
+
+## Why This Stage Matters
+
+- Prevents invalid data from entering transformation and modeling stages
+- Makes data issues observable and auditable
+- Enables safe automation for new incoming data
+- Aligns with real-world ML platform validation practices
+
+---
+
+## How to Run the Project
+
+### Step 1: Clone the Repository
 ```bash
-https://github.com/Onabanjomicheal/Kidney-Disease-Classification-MLOps-AWS
-```
-### STEP 01- Create a conda environment after opening the repository
+git clone https://github.com/Onabanjomicheal/Kidney-Disease-Classification-MLOps-AWS
+cd Customer_Satisfaction_Prediction_to_Production
 
-```bash
-conda create -n cnncls python=3.8 -y
-```
-
-```bash
-conda activate cnncls
-```
+conda create -n cnncls python=3.10 -y
 
 
-### STEP 02- install the requirements
-```bash
-pip install -r requirements.txt
-```
-
-```bash
-# Finally run the following command
 python app.py
-```
-
-Now,
-```bash
-open up you local host and port
-```
-
-
-
