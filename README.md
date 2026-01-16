@@ -81,7 +81,7 @@ This behavior reflects production-safe validation and failure detection.
 
 ### Step 1: Clone the Repository
 ```bash
-git clone https://github.com/Onabanjomicheal/Kidney-Disease-Classification-MLOps-AWS
+git clone https://github.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production
 cd Customer_Satisfaction_Prediction_to_Production
 
 conda create -n cnncls python=3.10 -y
