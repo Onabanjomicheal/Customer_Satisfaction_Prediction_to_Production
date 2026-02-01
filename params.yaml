@@ -1,17 +1,49 @@
 # ======================================
-# Model & Training Parameters
+# STAGE 04: FEATURE TRANSFORMATION
 # ======================================
-BATCH_SIZE: 32
-EPOCHS: 20
-LEARNING_RATE: 0.001
-RANDOM_STATE: 42
-
-# Model-specific
-MAX_DEPTH: 5        # for tree-based models like XGBoost, LightGBM
-N_ESTIMATORS: 100
+feature_transformation:
+  test_size: 0.2
+  random_state: 42
 
 # ======================================
-# Dataset Split / Misc
+# STAGE 05: MULTI-MODEL TRAINING
 # ======================================
-TEST_SPLIT: 0.2
-TARGET_COLUMN: "satisfaction_score"   # or whatever the target column is
+models:
+  # 1. K-Nearest Neighbors
+  KNN:
+    n_neighbors: 5
+
+  # 2. Logistic Regression
+  LogisticRegression:
+    C: 0.001
+    max_iter: 1000
+    class_weight: "balanced"
+    solver: "lbfgs"
+
+  # 3. Random Forest
+  RandomForest:
+    n_estimators: 140
+    max_depth: 10
+    class_weight: "balanced"
+    random_state: 42
+
+  # 4. XGBoost (The Champion)
+  XGBoost:
+    n_estimators: 300
+    learning_rate: 0.0001
+    max_depth: 12
+    subsample: 0.8
+    colsample_bytree: 0.8
+    objective: "binary:logistic"
+    random_state: 42
+    eval_metric: "logloss"
+    # Handling your 78/22 imbalance
+    scale_pos_weight: 3.5
+
+  # 5. Multi-Layer Perceptron (Neural Network)
+  MLP:
+    hidden_layer_sizes: [100]
+    solver: "adam"
+    learning_rate_init: 0.001
+    max_iter: 300
+    random_state: 42

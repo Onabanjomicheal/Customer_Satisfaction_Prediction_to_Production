@@ -64,8 +64,6 @@ This stage ensures data quality before downstream processing.
 - `olist_products_dataset.csv` was correctly flagged due to data quality issues
 - Datasets not defined in the schema were safely skipped and logged
 
-This behavior reflects production-safe validation and failure detection.
-
 ---
 
 ## Why This Stage Matters
@@ -73,7 +71,6 @@ This behavior reflects production-safe validation and failure detection.
 - Prevents invalid data from entering transformation and modeling stages
 - Makes data issues observable and auditable
 - Enables safe automation for new incoming data
-- Aligns with real-world ML platform validation practices
 
 ---
 
@@ -88,3 +85,30 @@ conda create -n cnncls python=3.10 -y
 
 
 python app.py
+
+
+
+### dagshub
+[dagshub](https://dagshub.com/)
+
+MLFLOW_TRACKING_URI=https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production \
+MLFLOW_TRACKING_USERNAME=Onabanjomicheal \
+MLFLOW_TRACKING_PASSWORD=f1c60ac6579043df34bebaf39959b928ca4d6fd7 \
+python script.py
+
+Run this to export as env variables:
+
+```bash
+
+export MLFLOW_TRACKING_URI=https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production.mlflow
+export MLFLOW_TRACKING_USERNAME=Onabanjomicheal
+export MLFLOW_TRACKING_PASSWORD=f1c60ac6579043df34bebaf39959b928ca4d6fd7
+
+
+import dagshub
+dagshub.init(repo_owner='Onabanjomicheal', repo_name='Customer_Satisfaction_Prediction_to_Production', mlflow=True)
+
+import mlflow
+with mlflow.start_run():
+  mlflow.log_param('parameter name', 'value')
+  mlflow.log_metric('metric name', 1)

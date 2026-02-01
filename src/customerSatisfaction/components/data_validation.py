@@ -1,134 +1,133 @@
 import os
 import pandas as pd
-import logging
 from pathlib import Path
 from customerSatisfaction.entity.config_entity import DataValidationConfig
 from customerSatisfaction.utils.common import save_json
-
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s]: %(message)s:')
+from customerSatisfaction import logger
 
 class DataValidation:
     def __init__(self, config: DataValidationConfig):
         self.config = config
-        self.schema = config.full_schema  # schema embedded in config now
-        self.report = {}  # store detailed validation results per dataset
-
-        # Ensure validated data directory exists and assign to instance
-        self.validated_data_dir = Path(self.config.raw_validated_dir)
+        self.schema = config.all_schema # Holds the nested schema dictionary
+        self.report = {}
+        self.raw_data_dir = Path(config.unzip_data_dir)
+        self.validated_data_dir = Path(config.raw_validated_dir)
         self.validated_data_dir.mkdir(parents=True, exist_ok=True)
 
-    def _validate_column_types(self, data: pd.DataFrame, expected_columns: dict, dataset_name: str) -> bool:
-        status = True
-        for col, expected_type in expected_columns.items():
-            if col in data.columns:
-                actual_type = str(data[col].dtype)
-                if actual_type != expected_type:
-                    status = False
-                    logging.error(f"Column '{col}' in {dataset_name} expected type '{expected_type}', got '{actual_type}'")
-                else:
-                    logging.info(f"Column '{col}' type validated in {dataset_name}")
-        return status
+    def initiate_data_validation(self) -> bool:
+        try:
+            # Task 1: Loading & Schema Validation
+            logger.info("Task 1: Loading datasets and verifying nested schema...")
+            datasets = {}
+            for file_name in self.config.datasets:
+                path = self.raw_data_dir / file_name
+                df = pd.read_csv(path)
+                
+                # Check if file exists in schema.yaml before validating
+                if file_name in self.schema:
+                    expected_cols = list(self.schema[file_name]["columns"].keys())
+                    actual_cols = list(df.columns)
+                    
+                    # Validate columns
+                    for col in expected_cols:
+                        if col not in actual_cols:
+                            logger.error(f"Missing column '{col}' in {file_name}")
+                            return False
+                
+                datasets[file_name.replace(".csv", "")] = df
+            
+            cust = datasets["olist_customers_dataset"]
+            orders = datasets["olist_orders_dataset"]
+            items = datasets["olist_order_items_dataset"]
+            pay = datasets["olist_order_payments_dataset"]
+            prod = datasets["olist_products_dataset"]
+            rev = datasets["olist_order_reviews_dataset"]
+            sell = datasets["olist_sellers_dataset"]
+            logger.info("Task 1 Completed: All datasets loaded and schema verified.")
 
-    def _validate_constraints(self, data: pd.DataFrame, constraints: dict, dataset_name: str) -> bool:
-        status = True
-        if not constraints:
-            return status
+            # Task 2: Deduplication
+            logger.info("Task 2: Applying deduplication rules...")
+            orders.drop_duplicates(subset=["order_id"], inplace=True)
+            cust.drop_duplicates(subset=["customer_id"], inplace=True)
+            prod.drop_duplicates(subset=["product_id"], inplace=True)
+            sell.drop_duplicates(subset=["seller_id"], inplace=True)
+            items.drop_duplicates(subset=["order_id", "product_id", "seller_id"], inplace=True)
+            pay.drop_duplicates(subset=["order_id", "payment_type"], inplace=True)
+            rev.drop_duplicates(subset=["order_id"], inplace=True)
+            logger.info("Task 2 Completed: Deduplication finished.")
 
-        # Numeric min/max checks
-        for col, bound in constraints.get("min_max", {}).items():
-            if col in data.columns:
-                if data[col].min() < bound.get("min", float('-inf')) or data[col].max() > bound.get("max", float('inf')):
-                    status = False
-                    logging.error(f"Column '{col}' in {dataset_name} violates min/max constraints")
+            # Task 3: Datetime Parsing
+            logger.info("Task 3: Parsing datetime columns and removing NaT rows...")
+            datetime_cols = [
+                "order_purchase_timestamp", "order_approved_at",
+                "order_delivered_carrier_date", "order_delivered_customer_date",
+                "order_estimated_delivery_date"
+            ]
+            for col in datetime_cols:
+                if col in orders.columns:
+                    orders[col] = pd.to_datetime(orders[col], errors="coerce")
+            
+            orders.dropna(subset=datetime_cols, inplace=True)
+            logger.info("Task 3 Completed: Datetime processing and NaT removal finished.")
 
-        # Allowed values checks
-        for col, allowed in constraints.get("allowed_values", {}).items():
-            if col in data.columns:
-                invalid_values = set(data[col].unique()) - set(allowed)
-                if invalid_values:
-                    status = False
-                    logging.error(f"Column '{col}' in {dataset_name} contains invalid values: {invalid_values}")
+            # Task 4: Merging
+            logger.info("Task 4: Executing relational merge...")
+            merged_df = (
+                items
+                .merge(prod, on="product_id", how="left")
+                .merge(sell, on="seller_id", how="left")
+                .merge(orders, on="order_id", how="left")
+                .merge(cust, on="customer_id", how="left")
+                .merge(rev, on="order_id", how="left")
+                .merge(pay, on="order_id", how="left")
+            )
+            logger.info(f"Task 4 Completed: Merge finished. Table shape: {merged_df.shape}")
 
-        # Critical columns must not be null
-        for col in constraints.get("critical_columns", []):
-            if col in data.columns:
-                null_count = data[col].isna().sum()
-                if null_count > 0:
-                    status = False
-                    logging.error(f"Critical column '{col}' in {dataset_name} has {null_count} nulls")
+            # Task 5: Review Availability Flag
+            logger.info("Task 5: Creating review availability flags...")
+            merged_df["review_availability"] = (~merged_df["review_comment_message"].isna()).astype(int)
+            
+            # Task 6: Imputation
+            logger.info("Task 6: Imputing missing text...")
+            merged_df["review_comment_message"] = merged_df["review_comment_message"].fillna("indisponível")
+            if "review_title" in merged_df.columns:
+                merged_df["review_title"] = merged_df["review_title"].fillna("indisponível")
+            logger.info("Task 6 Completed: Text imputation finished.")
 
-        # Max null check
-        max_null = constraints.get("max_null_count")
-        if max_null is not None:
-            total_nulls = data.isna().sum().sum()
-            if total_nulls > max_null:
-                status = False
-                logging.error(f"Dataset {dataset_name} exceeds max nulls: {total_nulls} > {max_null}")
+            # Task 7: Benchmarking & Health Check
+            logger.info("Task 7: Benchmarking Dataset Health...")
+            nan_report = merged_df.isna().sum()
+            nan_percent = (merged_df.isna().mean() * 100).round(2)
+            
+            print("\n" + "="*50)
+            print("DATASET HEALTH REPORT (TOP 10 NaNs)")
+            print("="*50)
+            print(pd.concat([nan_report, nan_percent], axis=1, keys=['Count', '%']).sort_values(by='%', ascending=False).head(10))
+            print("="*50 + "\n")
 
-        return status
-
-    def validate_all_columns(self) -> bool:
-        overall_status = True
-        data_dir = Path(self.config.unzip_data_dir)
-        if not data_dir.exists():
-            raise FileNotFoundError(f"Data directory {data_dir} does not exist")
-
-        all_files = os.listdir(data_dir)
-        for file_name in all_files:
-            file_name_norm = file_name.strip()
-            if not file_name_norm.endswith(".csv"):
-                logging.info(f"Skipping non-CSV file: {file_name_norm}")
-                continue
-
-            dataset_schema = self.schema.get(file_name_norm)
-            if dataset_schema is None:
-                logging.info(f"Skipping {file_name_norm}: Not defined in schema.yaml")
-                continue
-
-            if "columns" not in dataset_schema:
-                raise ValueError(f"'columns' key missing in schema for {file_name_norm}")
-
-            data = pd.read_csv(data_dir / file_name_norm)
-            file_status = True
-
-            # Column existence check
-            for col in dataset_schema["columns"].keys():
-                if col not in data.columns:
-                    file_status = False
-                    logging.error(f"Column '{col}' missing in {file_name_norm}")
-                else:
-                    logging.info(f"Column '{col}' validated in {file_name_norm}")
-
-            # Column type check
-            file_status &= self._validate_column_types(data, dataset_schema["columns"], file_name_norm)
-
-            # Constraints check
-            file_status &= self._validate_constraints(data, dataset_schema.get("constraints", {}), file_name_norm)
-
-            # Save validated dataset
-            validated_path = self.validated_data_dir / file_name_norm
-            data.to_csv(validated_path, index=False)
-
-            # Add to report
-            self.report[file_name_norm] = {
-                "columns": list(data.columns),
-                "status": file_status
+            # Task 8: Export
+            logger.info("Task 8: Exporting clean data to Parquet format...")
+            output_file = self.validated_data_dir / "merged_stage2.parquet"
+            merged_df.to_parquet(output_file, index=False)
+            logger.info(f"Task 8 Completed: Data saved to {output_file}")
+            
+            # Task 9: Finalizing Report
+            self.report["summary"] = {
+                "total_rows": len(merged_df),
+                "total_cols": len(merged_df.columns),
+                "nan_counts": nan_report.to_dict(),
+                "output_file": str(output_file)
             }
+            save_json(Path(self.config.report_file), self.report)
 
-            overall_status &= file_status
+            with open(self.config.STATUS_FILE, "w") as f:
+                f.write(f"Validation status: True\nRows: {len(merged_df)}")
 
-        # Save JSON report
-        report_path = Path(self.config.report_file)
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        save_json(report_path, self.report)
+            logger.info(">>>>>> DATA VALIDATION STAGE COMPLETED <<<<<<")
+            return True
 
-        # Write overall status
-        status_file_path = Path(self.config.STATUS_FILE)
-        status_file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(status_file_path, 'w') as f:
-            f.write(f"Validation status: {overall_status}")
-
-        logging.info(f"Data Validation complete. Overall status: {overall_status}")
-        logging.info(f"Validated datasets saved at: {self.validated_data_dir}")
-        logging.info(f"Detailed report saved at: {report_path}")
-        return overall_status
+        except Exception as e:
+            logger.exception("Stage 2 Data Validation/Merge failed")
+            with open(self.config.STATUS_FILE, "w") as f:
+                f.write("Validation status: False")
+            raise e

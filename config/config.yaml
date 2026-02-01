@@ -1,15 +1,60 @@
 artifacts_root: artifacts
 
+# ---------------- DATA INGESTION ---------------- #
 data_ingestion:
   root_dir: artifacts/data_ingestion
   source_URL: "https://drive.google.com/file/d/1_M8ZzFem1uUnG6d3W_BDTA9B_ewYz0SQ/view?usp=sharing"
   local_data_file: artifacts/data_ingestion/data.zip
   unzip_dir: artifacts/data_ingestion/customer_data
 
+
+# ---------------- DATA VALIDATION ---------------- #
 data_validation:
   root_dir: artifacts/data_validation
-  unzip_data_dir: artifacts/data_ingestion/customer_data
   STATUS_FILE: artifacts/data_validation/status.txt
-  report_file: artifacts/data_validation/report.json
+  unzip_data_dir: artifacts/data_ingestion/customer_data
   raw_validated_dir: artifacts/data_validation/validated_data
-  schema_path: schema.yaml
+  report_file: artifacts/data_validation/report.json
+  datasets:
+    - olist_customers_dataset.csv
+    - olist_orders_dataset.csv
+    - olist_order_items_dataset.csv
+    - olist_order_payments_dataset.csv
+    - olist_products_dataset.csv
+    - olist_order_reviews_dataset.csv
+    - olist_sellers_dataset.csv
+
+  # ================= FEATURE ENGINEERING ================= #
+
+feature_engineering:
+  root_dir: artifacts/feature_engineering
+  data_path: artifacts/data_validation/validated_data/merged_stage2.parquet
+  engineered_data_path: artifacts/feature_engineering/feature_engineered_data.parquet
+
+
+  # ================= FEATURE TRANSFORMATION ================= #
+feature_transformation:
+  root_dir: artifacts/feature_transformation
+  data_path: artifacts/feature_engineering/feature_engineered_data.parquet
+  transformer_path: artifacts/feature_transformation/transformer.pkl
+  transformed_train_path: artifacts/feature_transformation/train.csv
+  transformed_test_path: artifacts/feature_transformation/test.csv
+  test_size: 0.2
+  random_state: 42
+
+# ================= MODEL TRAINING ================= #
+model_training:
+  root_dir: artifacts/model_training
+  train_data_path: artifacts/feature_transformation/train.csv
+  test_data_path: artifacts/feature_transformation/test.csv
+  model_name: RandomForest
+  model_path: artifacts/model_training/model.joblib 
+
+# ================= MODEL EVALUATION ================= #
+model_evaluation:
+  root_dir: artifacts/model_evaluation
+  test_data_path: artifacts/feature_transformation/test.csv
+  model_path: artifacts/model_training/model.joblib
+  metric_file_name: artifacts/model_evaluation/metrics.json
+  mlflow_uri: "https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production.mlflow"
+  target_column: "target"

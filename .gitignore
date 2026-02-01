@@ -108,6 +108,7 @@ datasets/
 # ML Artifacts (tracked via DVC / MLflow)
 # ===============================
 artifacts/
+!artifacts/**/*.dvc
 models/
 logs/
 runs/

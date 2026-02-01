@@ -1,44 +1,54 @@
-import logging
+from customerSatisfaction import logger
 from customerSatisfaction.config.configuration import ConfigurationManager
 from customerSatisfaction.components.data_validation import DataValidation
-
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s]: %(message)s:')
 
 STAGE_NAME = "Data Validation Stage"
 
 class DataValidationPipeline:
+    """
+    Pipeline class for orchestrating the Data Validation & Merging stage.
+    
+    This stage triggers the component that performs:
+    1. Loading 2. Deduplication 3. Datetime Parsing 4. Merging 
+    5. Imputation 6. Export 7. Reporting
+    """
+
     def __init__(self):
         pass
 
-    def main(self):
-        logging.info(f">>>>>> Stage {STAGE_NAME} started <<<<<<")
+    def main(self) -> bool:
+        """
+        Executes the Data Validation and Merging stage flow.
+        """
+        logger.info(f">>>>>> Stage {STAGE_NAME} started <<<<<<")
 
         try:
-            # Load configuration (schema embedded in config)
+            # Step 1: Initialize Configuration
+            logger.info("Initializing configuration for Data Validation...")
             config_manager = ConfigurationManager()
             data_validation_config = config_manager.get_data_validation_config()
+            logger.info("Configuration loaded successfully.")
 
-            # Initialize validator with config
+            # Step 2: Initialize Component
+            logger.info("Instantiating the DataValidation component...")
             validator = DataValidation(config=data_validation_config)
 
-            # Run validation and corrections
-            status = validator.validate_all_columns()
+            # Step 3: Trigger Core Logic (The 7 Tasks)
+            logger.info("Triggering the validation and merge logic...")
+            status = validator.initiate_data_validation()
 
-            # Log outcome with path to validated datasets
             if status:
-                logging.info(
-                    f"{STAGE_NAME} completed successfully. "
-                    f"Validated datasets are saved in: {validator.validated_data_dir}"
+                logger.info(
+                    f"{STAGE_NAME} successful. Merged dataset created and validated."
                 )
             else:
-                logging.warning(
-                    f"{STAGE_NAME} completed with issues. "
-                    f"Check validation report and validated datasets in: {validator.validated_data_dir}"
+                logger.error(
+                    f"{STAGE_NAME} failed. Check the generated status/report files."
                 )
 
-            logging.info(f">>>>>> Stage {STAGE_NAME} completed <<<<<<\n\nx==========x")
+            logger.info(f">>>>>> Stage {STAGE_NAME} completed <<<<<<\n\nx==========x")
             return status
 
         except Exception as e:
-            logging.error(f"Error in {STAGE_NAME}: {e}")
+            logger.exception(f"Fatal error during {STAGE_NAME} orchestration: {e}")
             raise e

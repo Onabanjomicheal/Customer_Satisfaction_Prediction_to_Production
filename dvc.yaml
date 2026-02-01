@@ -1,0 +1,86 @@
+stages:
+
+  # ================= STAGE 01: DATA INGESTION ================= #
+  data_ingestion:
+    cmd: python main.py --stage data_ingestion
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_01_data_ingestion.py
+      - src/customerSatisfaction/components/data_ingestion.py
+    outs:
+      - artifacts/data_ingestion/data.zip
+      - artifacts/data_ingestion/customer_data/
+
+
+  # ================= STAGE 02: DATA VALIDATION ================= #
+  data_validation:
+    cmd: python main.py --stage data_validation
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_02_data_validation.py
+      - src/customerSatisfaction/components/data_validation.py
+      - artifacts/data_ingestion/customer_data/
+    outs:
+      - artifacts/data_validation/validated_data/merged_stage2.parquet
+      - artifacts/data_validation/status.txt
+      - artifacts/data_validation/report.json
+
+
+# ================= STAGE 03: FEATURE ENGINEERING ================= #
+  feature_engineering:
+    cmd: python main.py --stage feature_engineering
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_03_feature_engineering.py
+      - src/customerSatisfaction/components/feature_engineering.py
+      - artifacts/data_validation/validated_data/merged_stage2.parquet
+    outs:
+      - artifacts/feature_engineering/feature_engineered_data.parquet
+
+
+
+# ================= STAGE 04: FEATURE TRANSFORMATION ================= #
+  feature_transformation:
+    cmd: python main.py --stage feature_transformation
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_04_feature_transformation.py
+      - src/customerSatisfaction/components/feature_transformation.py
+      - artifacts/feature_engineering/feature_engineered_data.parquet
+      - params.yaml
+    outs:
+      - artifacts/feature_transformation/transformer.pkl
+      - artifacts/feature_transformation/train.csv
+      - artifacts/feature_transformation/test.csv
+
+
+# ================= STAGE 05: MODEL TRAINING ================= #
+  model_training:
+    cmd: python main.py --stage model_training
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_05_model_training.py
+      - src/customerSatisfaction/components/model_trainer.py
+      - artifacts/feature_transformation/train.csv
+      - params.yaml
+    params:
+      - models  # Track the model configurations specifically
+    outs:
+      - artifacts/model_training/ # Tracks the folder containing all 5 .joblib files
+
+# ================= STAGE 06: MODEL EVALUATION ================= #
+  model_evaluation:
+    cmd: python main.py --stage model_evaluation
+    deps:
+      - main.py
+      - src/customerSatisfaction/pipeline/stage_06_model_evaluation.py
+      - src/customerSatisfaction/components/model_evaluation.py
+      - artifacts/feature_transformation/test.csv
+      - artifacts/model_training/ # Re-runs if any model file in the folder changes
+      - params.yaml
+    # We add the transformer as a dependency here because 
+    # our MLflow code logs it as an artifact in this stage.
+      - artifacts/feature_transformation/transformer.pkl
+    metrics:
+      - artifacts/model_evaluation/metrics.json:
+          cache: false

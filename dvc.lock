@@ -1,0 +1,250 @@
+schema: '2.0'
+stages:
+  data_ingestion:
+    cmd: python main.py --stage data_ingestion
+    deps:
+    - path: main.py
+      hash: md5
+      md5: ab67408eba0a1fa3a4173c137f7ecc6b
+      size: 2037
+    - path: src/customerSatisfaction/components/data_ingestion.py
+      hash: md5
+      md5: 6a6546927d243e5650a4e5b2f44699d3
+      size: 2515
+    - path: src/customerSatisfaction/pipeline/stage_01_data_ingestion.py
+      hash: md5
+      md5: a7c87bbbfd391b742ceeb4a7c6bd1419
+      size: 1250
+    outs:
+    - path: artifacts/data_ingestion/customer_data/
+      hash: md5
+      md5: 797a00bc31008df615058ca198c64ad1.dir
+      size: 126186995
+      nfiles: 9
+    - path: artifacts/data_ingestion/data.zip
+      hash: md5
+      md5: f2f3704ec08d55ef94fc2887bdc96472
+      size: 44717580
+  data_validation:
+    cmd: python main.py --stage data_validation
+    deps:
+    - path: artifacts/data_ingestion/customer_data/
+      hash: md5
+      md5: 797a00bc31008df615058ca198c64ad1.dir
+      size: 126186995
+      nfiles: 9
+    - path: main.py
+      hash: md5
+      md5: ab67408eba0a1fa3a4173c137f7ecc6b
+      size: 2037
+    - path: src/customerSatisfaction/components/data_validation.py
+      hash: md5
+      md5: eeb3f8d200acca74ad3227be272d3bd8
+      size: 6550
+    - path: src/customerSatisfaction/pipeline/stage_02_data_validation.py
+      hash: md5
+      md5: bc2c92ee711b653bffe33a1f987a4e9c
+      size: 2045
+    outs:
+    - path: artifacts/data_validation/report.json
+      hash: md5
+      md5: cc9d8fcbb64bc3f7535786cb6d55adc1
+      size: 1755
+    - path: artifacts/data_validation/status.txt
+      hash: md5
+      md5: 548c30ee4871ed388838c37207efd84f
+      size: 37
+    - path: artifacts/data_validation/validated_data/merged_stage2.parquet
+      hash: md5
+      md5: 02d1574993357781da5e88b44fc73cb0
+      size: 25525332
+  feature_engineering:
+    cmd: python main.py --stage feature_engineering
+    deps:
+    - path: artifacts/data_validation/validated_data/merged_stage2.parquet
+      hash: md5
+      md5: 02d1574993357781da5e88b44fc73cb0
+      size: 25525332
+    - path: main.py
+      hash: md5
+      md5: ab67408eba0a1fa3a4173c137f7ecc6b
+      size: 2037
+    - path: src/customerSatisfaction/components/feature_engineering.py
+      hash: md5
+      md5: e280528fe2cd1c315bba85b35f78c6d9
+      size: 4174
+    - path: src/customerSatisfaction/pipeline/stage_03_feature_engineering.py
+      hash: md5
+      md5: dbadca09b3eda44d02426bb2a60cb6a3
+      size: 2545
+    outs:
+    - path: artifacts/feature_engineering/feature_engineered_data.parquet
+      hash: md5
+      md5: 79848a203cdeaa49efec39c82c832586
+      size: 2404960
+  feature_selection:
+    cmd: python main.py --stage feature_selection
+    deps:
+    - path: artifacts/feature_engineering/feature_engineered_data.csv
+      hash: md5
+      md5: 4cf189b5c6e30de5f9d7a77da8522a4d
+      size: 9989877
+    - path: params.yaml
+      hash: md5
+      md5: 88af02de19667b8797ea072916ada1a9
+      size: 726
+    - path: src/customerSatisfaction/components/feature_selection.py
+      hash: md5
+      md5: 47872209cb6b4691129f927dfb2749f3
+      size: 5694
+    outs:
+    - path: artifacts/feature_selection/feature_importance_plot.png
+      hash: md5
+      md5: aa9399c914efba089484a27a7108dcf2
+      size: 51347
+    - path: artifacts/feature_selection/feature_importances.csv
+      hash: md5
+      md5: 2ebbf242f998a4aa2a9449951fd312d1
+      size: 1104
+    - path: artifacts/feature_selection/filtered_transformed_dataset.csv
+      hash: md5
+      md5: 0ffacad7ee8ad312cdf2cca042d80c8f
+      size: 5761372
+    - path: artifacts/feature_selection/selected_features.csv
+      hash: md5
+      md5: 905997abcf799f519a73280b255e8d6f
+      size: 393
+  model_training:
+    cmd: python main.py --stage model_training
+    deps:
+    - path: artifacts/feature_transformation/train.csv
+      hash: md5
+      md5: be15c7c40b3ff0ee113cc18bfddd16a5
+      size: 54475234
+    - path: main.py
+      hash: md5
+      md5: aae2e66c15aeb5f04ca5a2c450428699
+      size: 2125
+    - path: params.yaml
+      hash: md5
+      md5: 898821c0e95a1462247e82e76aa64f22
+      size: 1128
+    - path: src/customerSatisfaction/components/model_trainer.py
+      hash: md5
+      md5: 86247fa6fad53bf31e811f4ea07a06c3
+      size: 2700
+    - path: src/customerSatisfaction/pipeline/stage_05_model_training.py
+      hash: md5
+      md5: 3681998bf594df1c4f385cea044c73b9
+      size: 851
+    params:
+      params.yaml:
+        models:
+          KNN:
+            n_neighbors: 5
+          LogisticRegression:
+            C: 0.0001
+            max_iter: 1000
+            class_weight: balanced
+            solver: lbfgs
+          RandomForest:
+            n_estimators: 140
+            max_depth: 10
+            class_weight: balanced
+            random_state: 42
+          XGBoost:
+            n_estimators: 400
+            learning_rate: 0.001
+            max_depth: 8
+            subsample: 0.8
+            colsample_bytree: 0.8
+            objective: binary:logistic
+            random_state: 42
+            eval_metric: logloss
+            scale_pos_weight: 3.2
+          MLP:
+            hidden_layer_sizes:
+            - 100
+            solver: adam
+            learning_rate_init: 0.001
+            max_iter: 300
+            random_state: 42
+    outs:
+    - path: artifacts/model_training/
+      hash: md5
+      md5: bcbadacd09f4324c66da5db293de0d4d.dir
+      size: 92198877
+      nfiles: 5
+  feature_transformation:
+    cmd: python main.py --stage feature_transformation
+    deps:
+    - path: artifacts/feature_engineering/feature_engineered_data.parquet
+      hash: md5
+      md5: 79848a203cdeaa49efec39c82c832586
+      size: 2404960
+    - path: main.py
+      hash: md5
+      md5: ab67408eba0a1fa3a4173c137f7ecc6b
+      size: 2037
+    - path: params.yaml
+      hash: md5
+      md5: d88a9b63d89529ec35318aa88a3b2a4b
+      size: 1129
+    - path: src/customerSatisfaction/components/feature_transformation.py
+      hash: md5
+      md5: c119fd6b0df66f673e650feefa3294ea
+      size: 3949
+    - path: src/customerSatisfaction/pipeline/stage_04_feature_transformation.py
+      hash: md5
+      md5: 5a7a4798b692a324e13d4c49d20a3065
+      size: 973
+    outs:
+    - path: artifacts/feature_transformation/test.csv
+      hash: md5
+      md5: 49356bb70f7b54223a6fd9021804f335
+      size: 13619478
+    - path: artifacts/feature_transformation/train.csv
+      hash: md5
+      md5: be15c7c40b3ff0ee113cc18bfddd16a5
+      size: 54475234
+    - path: artifacts/feature_transformation/transformer.pkl
+      hash: md5
+      md5: f5857e578c0973c8115709c658d77b73
+      size: 6727
+  model_evaluation:
+    cmd: python main.py --stage model_evaluation
+    deps:
+    - path: artifacts/feature_transformation/test.csv
+      hash: md5
+      md5: 49356bb70f7b54223a6fd9021804f335
+      size: 13619478
+    - path: artifacts/feature_transformation/transformer.pkl
+      hash: md5
+      md5: f5857e578c0973c8115709c658d77b73
+      size: 6727
+    - path: artifacts/model_training/
+      hash: md5
+      md5: bcbadacd09f4324c66da5db293de0d4d.dir
+      size: 92198877
+      nfiles: 5
+    - path: main.py
+      hash: md5
+      md5: aae2e66c15aeb5f04ca5a2c450428699
+      size: 2125
+    - path: params.yaml
+      hash: md5
+      md5: 898821c0e95a1462247e82e76aa64f22
+      size: 1128
+    - path: src/customerSatisfaction/components/model_evaluation.py
+      hash: md5
+      md5: e5e67f45cc438f6e46e19e10d15fdd44
+      size: 6002
+    - path: src/customerSatisfaction/pipeline/stage_06_model_evaluation.py
+      hash: md5
+      md5: 9b3ac4dfdd53ebf06bc0e6ded6092ec2
+      size: 881
+    outs:
+    - path: artifacts/model_evaluation/metrics.json
+      hash: md5
+      md5: 79b8866572b21f9d5e6b649ea85ba9a1
+      size: 622

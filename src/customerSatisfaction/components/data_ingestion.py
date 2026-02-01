@@ -3,6 +3,7 @@ import zipfile
 import gdown
 import logging
 from pathlib import Path
+from customerSatisfaction import logger
 from customerSatisfaction.utils.common import get_size, create_directories
 from customerSatisfaction.entity.config_entity import DataIngestionConfig
 
@@ -16,7 +17,7 @@ class DataIngestion:
 
     def download_file(self) -> str:
         """
-        Fetch data from the Google Drive URL and save as local zip file
+        Ingesting data from the Google Drive URL and save as local zip file
         """
         try:
             dataset_url = self.config.source_URL
@@ -40,6 +41,8 @@ class DataIngestion:
         except Exception as e:
             logging.error(f"Error downloading file: {e}")
             raise e
+
+
 
     def extract_zip_file(self) -> str:
         """
