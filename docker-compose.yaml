@@ -1,28 +1,24 @@
-# Using 3.10-slim for better modern ML library support
-FROM python:3.10-slim
+version: '3.8'
 
-WORKDIR /app
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - ml-network
 
-# Essential for LightGBM/XGBoost/Scikit-Learn build processes
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    libgomp1 \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8501:8501"
+    networks:
+      - ml-network
 
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir --upgrade pip 
-RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt
-
-# Copy everything from root into /app
-COPY . .
-
-# Ensure the container sees your code in the src directory
-ENV PYTHONPATH=/app/src
-
-EXPOSE 8080
-
-CMD ["python", "app.py"]
+networks:
+  ml-network:
+    driver: bridge
