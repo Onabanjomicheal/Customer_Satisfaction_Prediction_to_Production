@@ -5,8 +5,7 @@ import os
 # --- 1. CONFIGURATION & STANDARDS ---
 # When deployed on AWS, you will set BACKEND_SERVICE_URL to your App Runner URL.
 # Example: https://xyz123.us-east-1.awsapprunner.com/predict
-BACKEND_ENDPOINT = os.getenv("BACKEND_SERVICE_URL", "http://localhost:8080/predict")
-
+BACKEND_ENDPOINT = "http://44.220.246.255:8080/predict"
 st.set_page_config(page_title="Customer Satisfaction Portal", layout="wide")
 
 st.title("🛡️ Customer Satisfaction Prediction")
@@ -25,7 +24,7 @@ with st.form("prediction_form"):
 
     with col2:
         p_type = st.selectbox("Payment Type", ["credit_card", "boleto", "voucher", "debit_card"])
-        p_val = st.number_input("Payment Value", value=115.0)
+        p_val = st.number_input("Payment Value", value=100.0)
         installments = st.slider("Installments", 1, 24, 1)
         est_diff = st.slider("Estimated vs Actual Diff", -10, 10, 0)
         review_avail = st.selectbox("Review Available", [1, 0])
