@@ -22,22 +22,14 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # --- 1. BUILD & PUSH BACKEND ---
+      # --- BUILD & PUSH BACKEND ---
       - name: Build & Push Backend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: customer-satisfaction-backend
         run: |
-          # Pointing to the Dockerfile inside the 'backend' folder
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f backend/Dockerfile .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest -f Dockerfile .
+          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest
 
-      # --- 2. BUILD & PUSH FRONTEND ---
+      # --- BUILD & PUSH FRONTEND ---
       - name: Build & Push Frontend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: customer-satisfaction-frontend
         run: |
-          # Pointing to the Dockerfile inside the 'frontend' folder
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f frontend/Dockerfile.frontend .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest -f Dockerfile.frontend .
+          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest
