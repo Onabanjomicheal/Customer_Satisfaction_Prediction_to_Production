@@ -43,8 +43,6 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 60s
-          debug: true
           script: |
             # 1. Login to ECR
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
@@ -53,7 +51,7 @@ jobs:
             docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
             docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
-            # 3. Clean and Restart
+            # 3. Restart containers
             docker rm -f backend frontend || true
 
             docker run -d -p 8080:8080 --name backend \
