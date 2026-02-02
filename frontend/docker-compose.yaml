@@ -1,0 +1,24 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install EVERY system tool needed for ML compilation
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    libgomp1 \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+# Upgrade pip and set a longer timeout for heavy ML packages
+RUN pip install --no-cache-dir --upgrade pip 
+RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt
+
+COPY . .
+
+EXPOSE 8080
+
+CMD ["python", "app.py"]

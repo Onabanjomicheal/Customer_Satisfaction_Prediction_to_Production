@@ -103,6 +103,7 @@ Run this to export as env variables:
 export MLFLOW_TRACKING_URI=https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production.mlflow
 export MLFLOW_TRACKING_USERNAME=Onabanjomicheal
 export MLFLOW_TRACKING_PASSWORD=f1c60ac6579043df34bebaf39959b928ca4d6fd7
+export DAGSHUB_TOKEN=f1c60ac6579043df34bebaf39959b928ca4d6fd7
 
 
 import dagshub

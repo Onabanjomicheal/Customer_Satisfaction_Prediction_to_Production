@@ -3,8 +3,8 @@ import requests
 import os
 
 # --- 1. CONFIGURATION & STANDARDS ---
-# In production (Docker/AWS), we will set this env var to 'http://backend:8080/predict'
-# Locally, it defaults to your localhost setup.
+# When deployed on AWS, you will set BACKEND_SERVICE_URL to your App Runner URL.
+# Example: https://xyz123.us-east-1.awsapprunner.com/predict
 BACKEND_ENDPOINT = os.getenv("BACKEND_SERVICE_URL", "http://localhost:8080/predict")
 
 st.set_page_config(page_title="Customer Satisfaction Portal", layout="wide")
@@ -34,7 +34,7 @@ with st.form("prediction_form"):
 
 # --- 3. INFERENCE LOGIC ---
 if submit:
-    # Constructing the payload (22 features as per schema.yaml)
+    # Constructing the payload exactly as your FastAPI schema expects
     payload = {
         "price": price, 
         "freight_value": 15.0, 
@@ -56,25 +56,26 @@ if submit:
         "purchase_delivery_difference": float(del_diff),
         "estimated_actual_delivery_difference": float(est_diff),
         "price_category": "affordable", 
-        "purchase_delivery_diff_per_price": float(del_diff/price)
+        "purchase_delivery_diff_per_price": float(del_diff/price) if price != 0 else 0.0
     }
 
     try:
-        # Standardized Request
-        response = requests.post(
-            url=BACKEND_ENDPOINT, 
-            json=payload,
-            timeout=10 # Best practice to avoid hanging UI
-        )
+        with st.spinner("Wait for it..."):
+            response = requests.post(
+                url=BACKEND_ENDPOINT, 
+                json=payload,
+                timeout=15 
+            )
         
         if response.status_code == 200:
             res_json = response.json()
+            # Assuming your FastAPI returns {"prediction": 4}
             prediction = res_json.get("prediction", "Unknown")
-            st.success(f"Model Prediction: **{prediction}**")
+            st.success(f"Model Prediction (Satisfaction Score): **{prediction}**")
         else:
             st.error(f"Backend Error: {response.status_code} - {response.text}")
 
     except requests.exceptions.ConnectionError:
-        st.error("Failed to connect to the backend. Is the FastAPI server running?")
+        st.error(f"Failed to connect to the backend at {BACKEND_ENDPOINT}. Is the service live?")
     except Exception as e:
         st.error(f"An unexpected error occurred: {str(e)}")

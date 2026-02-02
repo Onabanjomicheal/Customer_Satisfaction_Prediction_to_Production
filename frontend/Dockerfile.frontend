@@ -1,0 +1,20 @@
+# Use the same base for consistency, but we don't need the heavy compilers here
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Step 2: Use the specific frontend requirements we talked about
+# Create this file as 'requirements_frontend.txt' in your root
+COPY requirements_frontend.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Step 3: Only copy the UI-specific file
+COPY main_ui.py .
+
+# Streamlit default port
+EXPOSE 8501
+
+# Healthcheck to help AWS monitor the UI status
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+CMD ["streamlit", "run", "main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]

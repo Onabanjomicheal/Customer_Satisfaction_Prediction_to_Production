@@ -1,0 +1,36 @@
+# ===============================
+# Core Data Science & ML
+# ===============================
+numpy
+pandas
+scikit-learn
+joblib
+xgboost
+lightgbm
+catboost
+
+# ===============================
+# MLOps & Experiment Tracking
+# ===============================
+mlflow
+dvc
+dagshub
+
+# ===============================
+# API & Web Serving (Essential)
+# ===============================
+fastapi
+uvicorn
+pydantic
+streamlit
+
+# ===============================
+# Utilities & Configuration
+# ===============================
+pyyaml
+python-dotenv
+python-box
+ensure
+markupsafe
+matplotlib
+seaborn

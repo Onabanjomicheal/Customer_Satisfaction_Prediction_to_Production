@@ -54,7 +54,6 @@ class ModelTrainingConfig:
     model_name: str       
     model_path: Path
     all_params: dict
-    # MLflow URI not needed in training, only optional
     mlflow_uri: str = None
 
 # ---------------- MODEL EVALUATION ---------------- #
