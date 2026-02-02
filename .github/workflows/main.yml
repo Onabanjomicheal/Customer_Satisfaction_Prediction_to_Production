@@ -33,3 +33,39 @@ jobs:
         run: |
           docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest -f Dockerfile.frontend .
           docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_PUBLIC_IP }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 1. Login to ECR on the EC2 host
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
+
+            # 2. Pull the latest images from ECR
+            docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
+            docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
+
+            # 3. Stop and remove existing containers (|| true prevents failure if they don't exist)
+            docker rm -f backend frontend || true
+
+            # 4. Launch Backend with DagsHub M2M Authentication
+            docker run -d -p 8080:8080 --name backend \
+              --network ml-network \
+              -e MLFLOW_TRACKING_URI=https://dagshub.com/olamilekanfavour98/customer-satisfaction-mlops.mlflow \
+              -e MLFLOW_TRACKING_USERNAME=olamilekanfavour98 \
+              -e MLFLOW_TRACKING_PASSWORD=f1c60ac6579043df34bebaf39959b928ca4d6fd7 \
+              -e DAGSHUB_USER_TOKEN=f1c60ac6579043df34bebaf39959b928ca4d6fd7 \
+              -e PYTHONPATH=/app/src \
+              651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
+
+            # 5. Launch Frontend
+            docker run -d -p 8501:8501 --name frontend \
+              --network ml-network \
+              651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
