@@ -22,22 +22,22 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # --- 1. BUILD & PUSH BACKEND (ALREADY GREEN) ---
+      # --- 1. BUILD & PUSH BACKEND ---
       - name: Build & Push Backend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: customer-satisfaction-backend
         run: |
-          # Uses the file named 'Dockerfile' by default
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+          # Pointing to the Dockerfile inside the 'backend' folder
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f backend/Dockerfile .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # --- 2. BUILD & PUSH FRONTEND (THE NEW ADDITION) ---
+      # --- 2. BUILD & PUSH FRONTEND ---
       - name: Build & Push Frontend
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: customer-satisfaction-frontend
         run: |
-          # WE ADDED '-f Dockerfile.frontend' HERE
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile.frontend .
+          # Pointing to the Dockerfile inside the 'frontend' folder
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f frontend/Dockerfile.frontend .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
