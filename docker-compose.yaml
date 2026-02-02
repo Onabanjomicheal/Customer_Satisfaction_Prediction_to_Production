@@ -1,8 +1,9 @@
-FROM python:3.9-slim
+# Using 3.10-slim for better modern ML library support
+FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install EVERY system tool needed for ML compilation
+# Essential for LightGBM/XGBoost/Scikit-Learn build processes
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -13,11 +14,14 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-# Upgrade pip and set a longer timeout for heavy ML packages
 RUN pip install --no-cache-dir --upgrade pip 
 RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt
 
+# Copy everything from root into /app
 COPY . .
+
+# Ensure the container sees your code in the src directory
+ENV PYTHONPATH=/app/src
 
 EXPOSE 8080
 
