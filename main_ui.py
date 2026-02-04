@@ -1,39 +1,50 @@
 import streamlit as st
 import requests
 import os
+import logging
 
-# --- 1. CONFIGURATION & STANDARDS ---
-# When deployed on AWS, you will set BACKEND_SERVICE_URL to your App Runner URL.
-# Example: https://xyz123.us-east-1.awsapprunner.com/predict
-BACKEND_ENDPOINT = "http://44.220.246.255:8080/predict"
-st.set_page_config(page_title="Customer Satisfaction Portal", layout="wide")
+# --- 1. PRODUCTION CONFIGURATION (Standard ML Pattern) ---
+# We use os.environ.get to ensure the app is portable across Dev, Staging, and Prod.
+BACKEND_ENDPOINT = os.environ.get("BACKEND_SERVICE_URL", "http://localhost:8080/predict")
+
+# Initialize logging for production audit trails
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+st.set_page_config(
+    page_title="Customer Satisfaction Portal | MLOps Prod", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.title("🛡️ Customer Satisfaction Prediction")
-st.sidebar.info(f"Connected to: {BACKEND_ENDPOINT}")
+st.sidebar.header("System Status")
+st.sidebar.info(f"Production API: {BACKEND_ENDPOINT}")
 
-# --- 2. INPUT UI ---
+# --- 2. FEATURE INPUTS ---
 with st.form("prediction_form"):
+    st.subheader("Order & Delivery Details")
     col1, col2 = st.columns(2)
     
     with col1:
-        price = st.number_input("Price", value=100.0)
-        p_cat = st.selectbox("Category", ["bed_bath_table", "health_beauty", "sports_leisure"])
+        price = st.number_input("Price ($)", min_value=0.0, value=100.0)
+        p_cat = st.selectbox("Product Category", ["bed_bath_table", "health_beauty", "sports_leisure"])
         c_state = st.selectbox("Customer State", ["SP", "RJ", "MG", "RS", "PR", "SC", "BA", "GO", "ES", "PE"])
         s_state = st.selectbox("Seller State", ["SP", "RJ", "MG", "PR", "BA", "SC", "RS"])
-        del_diff = st.number_input("Delivery Days", value=10.0)
+        del_diff = st.number_input("Actual Delivery Days", min_value=0.0, value=10.0)
 
     with col2:
-        p_type = st.selectbox("Payment Type", ["credit_card", "boleto", "voucher", "debit_card"])
-        p_val = st.number_input("Payment Value", value=100.0)
+        p_type = st.selectbox("Payment Method", ["credit_card", "boleto", "voucher", "debit_card"])
+        p_val = st.number_input("Total Payment Value", min_value=0.0, value=100.0)
         installments = st.slider("Installments", 1, 24, 1)
-        est_diff = st.slider("Estimated vs Actual Diff", -10, 10, 0)
-        review_avail = st.selectbox("Review Available", [1, 0])
+        est_diff = st.slider("Days vs Estimate (Negative = Early)", -15, 15, 0)
+        review_avail = st.radio("Is Review Data Available?", [1, 0], horizontal=True)
 
-    submit = st.form_submit_button("Run Inference")
+    submit = st.form_submit_button("🚀 Run Production Inference")
 
-# --- 3. INFERENCE LOGIC ---
+# --- 3. PRODUCTION INFERENCE LOGIC ---
 if submit:
-    # Constructing the payload exactly as your FastAPI schema expects
+    # Standardizing Payload to match ML Model Schema
     payload = {
         "price": price, 
         "freight_value": 15.0, 
@@ -59,22 +70,22 @@ if submit:
     }
 
     try:
-        with st.spinner("Wait for it..."):
+        with st.spinner("Querying ML Model..."):
             response = requests.post(
                 url=BACKEND_ENDPOINT, 
                 json=payload,
-                timeout=15 
+                timeout=20 # Standard production timeout
             )
         
         if response.status_code == 200:
-            res_json = response.json()
-            # Assuming your FastAPI returns {"prediction": 4}
-            prediction = res_json.get("prediction", "Unknown")
-            st.success(f"Model Prediction (Satisfaction Score): **{prediction}**")
+            prediction = response.json().get("prediction", "N/A")
+            st.success(f"### Predicted Satisfaction Score: **{prediction}**")
+            st.balloons()
+            logger.info(f"Successful prediction: {prediction}")
         else:
-            st.error(f"Backend Error: {response.status_code} - {response.text}")
+            st.error(f"Upstream Service Error: {response.status_code}")
+            logger.error(f"Backend returned error: {response.text}")
 
-    except requests.exceptions.ConnectionError:
-        st.error(f"Failed to connect to the backend at {BACKEND_ENDPOINT}. Is the service live?")
-    except Exception as e:
-        st.error(f"An unexpected error occurred: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        st.error("Network Latency or Connection Error. Check Production Logs.")
+        logger.error(f"Connection Failed: {e}")
