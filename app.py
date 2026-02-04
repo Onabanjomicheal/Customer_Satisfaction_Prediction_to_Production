@@ -7,8 +7,11 @@ import os
 from customerSatisfaction.pipeline.prediction import PredictionPipeline
 from customerSatisfaction import logger
 
+# --- NEW: Monitoring Imports ---
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Gauge
+
 # 1. Global Initialization
-# Initialize DagsHub once at startup
 try:
     dagshub.init(
         repo_owner='Onabanjomicheal', 
@@ -19,11 +22,13 @@ try:
 except Exception as e:
     logger.error(f"DagsHub initialization failed: {e}")
 
-# Load the model into memory ONCE when the server starts
-# This makes individual predictions lightning fast
 predictor = PredictionPipeline()
 
-# 2. Pydantic Schema (Matches your Model Signature)
+# --- NEW: Define ML-Specific Metric ---
+# This Gauge tracks the last prediction: 1 for Satisfied, 0 for Dissatisfied
+PREDICTION_SCORE = Gauge("model_prediction_value", "Last predicted satisfaction score (1=Satisfied, 0=Dissatisfied)")
+
+# 2. Pydantic Schema
 class CustomerData(BaseModel):
     price: float
     freight_value: float
@@ -52,26 +57,36 @@ app = FastAPI(
     description="Real-time inference using the Production champion from DagsHub"
 )
 
+# --- NEW: Initialize & Expose Metrics ---
+# This creates the /metrics endpoint and tracks latency automatically
+instrumentator = Instrumentator().instrument(app)
+
+@app.on_event("startup")
+async def _startup():
+    instrumentator.expose(app)
+
 @app.get("/")
 async def root():
     return {
         "status": "API is running", 
         "model_source": "DagsHub Model Registry",
-        "endpoint": "/predict"
+        "endpoint": "/predict",
+        "metrics": "/metrics"
     }
 
 @app.post("/predict")
 async def predict_route(data: CustomerData):
     try:
-        # Convert Pydantic model to DataFrame using model_dump() (Pydantic v2)
         df = pd.DataFrame([data.model_dump()])
-        
-        # Use the pre-loaded global predictor
         prediction = predictor.predict(df)
         
-        # Map prediction to human-readable label
-        # (Assuming 1 is Satisfied, 0 is Dissatisfied based on your previous code)
-        result = "Satisfied" if int(prediction[0]) == 1 else "Dissatisfied"
+        # Convert prediction to integer (0 or 1)
+        pred_value = int(prediction[0])
+        
+        # --- NEW: Update ML Metric ---
+        PREDICTION_SCORE.set(pred_value)
+        
+        result = "Satisfied" if pred_value == 1 else "Dissatisfied"
         
         logger.info(f"Prediction successful: {result}")
         return {
@@ -84,5 +99,4 @@ async def predict_route(data: CustomerData):
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    # Port 8080 is excellent for AWS App Runner or Elastic Beanstalk
     uvicorn.run(app, host="0.0.0.0", port=8080)

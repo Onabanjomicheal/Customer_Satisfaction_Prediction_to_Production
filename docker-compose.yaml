@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: backend
     ports:
       - "8080:8080"
     networks:
@@ -19,6 +20,54 @@ services:
     networks:
       - ml-network
 
+  # --- NEW: Infrastructure Monitor (Hardware) ---
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+    ports:
+      - "9100:9100"
+    networks:
+      - ml-network
+
+  # --- The Librarian (Data Collection) ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d' # Keeps 30 days of ML history
+    ports:
+      - "9090:9090"
+    networks:
+      - ml-network
+
+  # --- The Command Center (Visualization) ---
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - ml-network
+
 networks:
   ml-network:
     driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:

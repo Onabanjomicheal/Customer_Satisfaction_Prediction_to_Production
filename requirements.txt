@@ -24,7 +24,7 @@ uvicorn
 pydantic
 streamlit
 
-# ===============================
+
 # Utilities & Configuration
 # ===============================
 pyyaml
@@ -34,3 +34,9 @@ ensure
 markupsafe
 matplotlib
 seaborn
+
+
+# NEW: Observability & Monitoring
+# ===============================
+prometheus-client
+prometheus-fastapi-instrumentator

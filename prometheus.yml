@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 15s     # How often to check the pulse of your app
+  evaluation_interval: 15s # How often to check if any alerts should be triggered
+
+# The "Librarian's" list of targets to watch
+scrape_configs:
+  # 1. Monitoring Prometheus itself (Standard practice)
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 2. Monitoring your FastAPI Backend (ML Model & API Health)
+  - job_name: 'customer-satisfaction-api'
+    metrics_path: '/metrics'  # The hidden door we added to app.py
+    static_configs:
+      - targets: ['backend:8080'] # Matches the service name in docker-compose
+
+  # 3. Monitoring EC2 Infrastructure (Hardware/RAM/CPU)
+  - job_name: 'ec2-hardware'
+    static_configs:
+      - targets: ['node-exporter:9100'] # Matches the node-exporter service
