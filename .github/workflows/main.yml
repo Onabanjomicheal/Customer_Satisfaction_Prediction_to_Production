@@ -3,12 +3,6 @@ name: AWS Production Deployment
 on:
   push:
     branches: [ "main" ]
-  paths-ignore:
-    - 'README.md'
-
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   integration:
@@ -17,13 +11,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Lint & Test
-        run: |
-          echo "Linting repository..."
-          echo "Running unit tests..."
+        run: echo "Linting and testing repository"
 
-  build-and-push-ecr-image:
+  build-and-push:
     name: Continuous Delivery
     needs: integration
     runs-on: ubuntu-latest
@@ -42,22 +33,25 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Images
+      - name: Build & Push Backend
         run: |
           docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest -f Dockerfile .
           docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest
-          
+
+      - name: Build & Push Frontend
+        run: |
           docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest -f Dockerfile.frontend .
           docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest
 
-  continuous-deployment:
+  deploy:
     name: Continuous Deployment
-    needs: build-and-push-ecr-image
+    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # This moves your prometheus.yml to the server automatically
       - name: Copy prometheus.yml to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -73,43 +67,48 @@ jobs:
           host: ${{ secrets.EC2_PUBLIC_IP }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          use_insecure_cipher: true 
           script_stop: true
           script: |
             # 1. Login to ECR
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION.amazonaws.com
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
 
-            # 2. Setup environment
+            # 2. Create network if it doesn't exist
             docker network create ml-network || true
 
-            # 3. Pull latest images
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/customer-satisfaction-backend:latest
-            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/customer-satisfaction-frontend:latest
+            # 3. Pull the latest images
+            docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
+            docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
-            # 4. Remove old containers
+            # 4. Remove old containers (including monitoring)
             docker rm -f backend frontend prometheus grafana node-exporter || true
 
             # 5. Run Backend
-            docker run -d -p 8080:8080 --name backend --network ml-network \
-              -e MLFLOW_TRACKING_URI=${{ secrets.MLFLOW_TRACKING_URI }} \
-              -e MLFLOW_TRACKING_USERNAME=${{ secrets.MLFLOW_TRACKING_USERNAME }} \
-              -e MLFLOW_TRACKING_PASSWORD=${{ secrets.MLFLOW_TRACKING_PASSWORD }} \
-              -e DAGSHUB_TOKEN=${{ secrets.DAGSHUB_TOKEN }} \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/customer-satisfaction-backend:latest
+            docker run -d -p 8080:8080 --name backend \
+              --network ml-network \
+              -e MLFLOW_TRACKING_URI=https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production.mlflow \
+              -e MLFLOW_TRACKING_USERNAME=Onabanjomicheal \
+              -e MLFLOW_TRACKING_PASSWORD=f1c60ac6579043df34bebaf39959b928ca4d6fd7 \
+              -e DAGSHUB_TOKEN=f1c60ac6579043df34bebaf39959b928ca4d6fd7 \
+              -e PYTHONPATH=/app/src \
+              651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
 
             # 6. Run Frontend
-            docker run -d -p 8501:8501 --name frontend --network ml-network \
+            docker run -d -p 8501:8501 --name frontend \
+              --network ml-network \
               -e BACKEND_SERVICE_URL=http://${{ secrets.EC2_PUBLIC_IP }}:8080/predict \
-              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/customer-satisfaction-frontend:latest
+              651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
-            # 7. Run Node Exporter
+            # 7. Run Node Exporter (Infrastructure)
             docker run -d --name node-exporter --network ml-network -p 9100:9100 prom/node-exporter:latest
 
-            # 8. Run Prometheus
+            # 8. Run Prometheus (Collector)
             docker run -d -p 9090:9090 --name prometheus --network ml-network \
               -v /home/ec2-user/prometheus.yml:/etc/prometheus/prometheus.yml \
               prom/prometheus:latest
 
-            # 9. Run Grafana
+            # 9. Run Grafana (Dashboard)
             docker run -d -p 3000:3000 --name grafana --network ml-network grafana/grafana:latest
 
             # 10. Cleanup
