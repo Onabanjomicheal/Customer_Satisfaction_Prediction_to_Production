@@ -1,91 +1,72 @@
 import streamlit as st
 import requests
 import os
-import logging
+from datetime import datetime
 
-# --- 1. PRODUCTION CONFIGURATION (Standard ML Pattern) ---
-# We use os.environ.get to ensure the app is portable across Dev, Staging, and Prod.
 BACKEND_ENDPOINT = os.environ.get("BACKEND_SERVICE_URL", "http://localhost:8080/predict")
 
-# Initialize logging for production audit trails
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+st.set_page_config(page_title="CS Intelligence Portal", layout="wide")
+st.title("📊 Customer Experience Decision Support")
 
-st.set_page_config(
-    page_title="Customer Satisfaction Portal | MLOps Prod", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-st.title("🛡️ Customer Satisfaction Prediction")
-st.sidebar.header("System Status")
-st.sidebar.info(f"Production API: {BACKEND_ENDPOINT}")
-
-# --- 2. FEATURE INPUTS ---
-with st.form("prediction_form"):
-    st.subheader("Order & Delivery Details")
-    col1, col2 = st.columns(2)
+with st.form("main_form"):
+    st.info("Input logistics and order data to assess customer sentiment risk.")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        price = st.number_input("Unit Price", value=100.0)
+        freight = st.number_input("Freight Cost", value=15.0)
+        p_cat = st.selectbox("Category", ["beleza_saude", "perfumaria", "esporte_lazer"])
+        state = st.selectbox("State", ["SP", "RJ", "MG", "BA"])
+    with c2:
+        val = st.number_input("Total Paid", value=115.0)
+        p_type = st.selectbox("Payment", ["credit_card", "boleto", "voucher"])
+        inst = st.slider("Installments", 1, 12, 1)
+        photos = st.number_input("Photos", 1, 10, 1)
+    with c3:
+        d_days = st.number_input("Delivery Days", value=7.0)
+        e_days = st.number_input("Est. Days", value=10.0)
+        c_time = st.number_input("Carrier Lead Time", value=2.0)
     
-    with col1:
-        price = st.number_input("Price ($)", min_value=0.0, value=100.0)
-        p_cat = st.selectbox("Product Category", ["bed_bath_table", "health_beauty", "sports_leisure"])
-        c_state = st.selectbox("Customer State", ["SP", "RJ", "MG", "RS", "PR", "SC", "BA", "GO", "ES", "PE"])
-        s_state = st.selectbox("Seller State", ["SP", "RJ", "MG", "PR", "BA", "SC", "RS"])
-        del_diff = st.number_input("Actual Delivery Days", min_value=0.0, value=10.0)
+    submit = st.form_submit_button("Analyze Customer Sentiment")
 
-    with col2:
-        p_type = st.selectbox("Payment Method", ["credit_card", "boleto", "voucher", "debit_card"])
-        p_val = st.number_input("Total Payment Value", min_value=0.0, value=100.0)
-        installments = st.slider("Installments", 1, 24, 1)
-        est_diff = st.slider("Days vs Estimate (Negative = Early)", -15, 15, 0)
-        review_avail = st.radio("Is Review Data Available?", [1, 0], horizontal=True)
-
-    submit = st.form_submit_button("🚀 Run Production Inference")
-
-# --- 3. PRODUCTION INFERENCE LOGIC ---
 if submit:
-    # Standardizing Payload to match ML Model Schema
+    now = datetime.now()
     payload = {
-        "price": price, 
-        "freight_value": 15.0, 
-        "product_category_name": p_cat,
-        "product_name_lenght": 40.0, 
-        "product_description_lenght": 500.0,
-        "product_photos_qty": 1.0, 
-        "product_weight_g": 1000.0,
-        "product_length_cm": 20.0, 
-        "product_height_cm": 10.0, 
-        "product_width_cm": 15.0,
-        "seller_state": s_state, 
-        "customer_state": c_state,
-        "payment_sequential": 1.0, 
-        "payment_type": p_type,
-        "payment_installments": float(installments), 
-        "payment_value": p_val,
-        "review_availability": int(review_avail), 
-        "purchase_delivery_difference": float(del_diff),
-        "estimated_actual_delivery_difference": float(est_diff),
-        "price_category": "affordable", 
-        "purchase_delivery_diff_per_price": float(del_diff/price) if price != 0 else 0.0
+        "carrier_handling_time": float(c_time), "delivery_time_days": float(d_days),
+        "order_items_count": 1.0, "payment_value": float(val),
+        "estimated_delivery_days": float(e_days), "avg_item_price": float(price),
+        "product_photos_qty": float(photos), "is_weekend_order": 1 if now.weekday() >= 5 else 0,
+        "order_hour": now.hour, "product_description_lenght": 500.0,
+        "total_freight": float(freight), "total_price": float(price),
+        "is_late_delivery": 1 if d_days > e_days else 0, "used_installments": float(inst),
+        "payment_installments": int(inst), "order_month": now.month,
+        "order_day_of_week": now.weekday(), "product_category_name": p_cat,
+        "payment_type": p_type, "customer_state": state
     }
 
     try:
-        with st.spinner("Querying ML Model..."):
-            response = requests.post(
-                url=BACKEND_ENDPOINT, 
-                json=payload,
-                timeout=20 # Standard production timeout
-            )
-        
+        response = requests.post(url=BACKEND_ENDPOINT, json=payload)
         if response.status_code == 200:
-            prediction = response.json().get("prediction", "N/A")
-            st.success(f"### Predicted Satisfaction Score: **{prediction}**")
-            st.balloons()
-            logger.info(f"Successful prediction: {prediction}")
-        else:
-            st.error(f"Upstream Service Error: {response.status_code}")
-            logger.error(f"Backend returned error: {response.text}")
+            res = response.json()
+            meta = res['metadata']
+            score = res['scores']['satisfaction_probability']
+            
+            st.divider()
+            
+            # Scenario Displays
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Assessment", meta['interpretation'])
+            m2.metric("Risk Level", meta['risk_level'])
+            m3.metric("Satisfaction Score", f"{score:.2%}")
 
-    except requests.exceptions.RequestException as e:
-        st.error("Network Latency or Connection Error. Check Production Logs.")
-        logger.error(f"Connection Failed: {e}")
+            if meta['alert_color'] == "GREEN":
+                st.success(f"**Recommended Action:** {meta['recommended_action']}")
+            elif meta['alert_color'] == "YELLOW":
+                st.warning(f"**Recommended Action:** {meta['recommended_action']}")
+            else:
+                st.error(f"**Recommended Action:** {meta['recommended_action']}")
+            
+            st.progress(score)
+        else:
+            st.error(f"System Error: {response.text}")
+    except Exception as e:
+        st.error(f"Connection Failed: {e}")

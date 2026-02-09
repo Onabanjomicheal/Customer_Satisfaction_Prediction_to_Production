@@ -1,172 +1,65 @@
 # =========================================
-# OLIST DATASET SCHEMA (STAGE 03)
-# Automated Feature Engineering
+# OLIST DATASET SCHEMA - PRODUCTION READY
 # =========================================
 
-# 1. Customers
-olist_customers_dataset.csv:
-  columns:
-    customer_id: object
-    customer_unique_id: object
-    customer_zip_code_prefix: int64
-    customer_city: object
-    customer_state: object
-  constraints:
-    critical_columns:
-      - customer_id
-      - customer_unique_id
-    max_null_count: 0
+# Global Config
+target_logic:
+  raw_target: review_score
+  prediction_target: target
+  mapping: {0: "Unsatisfied", 1: "Satisfied"}
+  threshold: 4 # Scores < 4 -> 0
 
-# 2. Geolocation (optional)
-olist_geolocation_dataset.csv:
-  columns:
-    geolocation_zip_code_prefix: int64
-    geolocation_lat: float64
-    geolocation_lng: float64
-    geolocation_city: object
-    geolocation_state: object
-  constraints:
-    critical_columns:
-      - geolocation_zip_code_prefix
-      - geolocation_lat
-      - geolocation_lng
-    max_null_count: 0
+# Core Tables
+tables:
+  orders:
+    path: artifacts/data_ingestion/olist_orders_dataset.csv
+    columns:
+      order_id: object
+      customer_id: object
+      order_status: object
+      order_purchase_timestamp: datetime
+      order_estimated_delivery_date: datetime
+      order_delivered_customer_date: datetime
+    datetime_columns: 
+      - order_purchase_timestamp
+      - order_estimated_delivery_date
+      - order_delivered_customer_date
+    constraints:
+      order_status_enum: [delivered, shipped, canceled, unavailable, invoiced, processing, created, approved]
 
-# 3. Orders
-olist_orders_dataset.csv:
-  columns:
-    order_id: object
-    customer_id: object
-    order_status: object
-    order_purchase_timestamp: object
-    order_approved_at: object
-    order_delivered_carrier_date: object
-    order_delivered_customer_date: object
-    order_estimated_delivery_date: object
-  constraints:
-    critical_columns:
-      - order_id
-      - customer_id
-    allowed_values:
-      order_status:
-        - delivered
-        - shipped
-        - canceled
-        - unavailable
-        - invoiced
-        - processing
-        - created
-        - approved
-    max_null_count: 6000
-
-# 4. Order Items
-olist_order_items_dataset.csv:
-  columns:
-    order_id: object
-    order_item_id: int64
-    product_id: object
-    seller_id: object
-    shipping_limit_date: object
-    price: float64
-    freight_value: float64
-  constraints:
-    critical_columns:
-      - order_id
-      - product_id
-      - seller_id
-    min_max:
-      price:
-        min: 0.0
-        max: 20000.0
-      freight_value:
-        min: 0.0
-        max: 5000.0
-    max_null_count: 0
-
-# 5. Products
-olist_products_dataset.csv:
-  columns:
-    product_id: object
-    product_category_name: object
-    product_name_lenght: float64
-    product_description_lenght: float64
-    product_photos_qty: float64
-    product_weight_g: float64
-    product_length_cm: float64
-    product_height_cm: float64
-    product_width_cm: float64
-  constraints:
-    critical_columns:
-      - product_id
-    min_max:
-      product_weight_g:
-        min: 0.0
-    max_null_count: 3500
-
-# 6. Sellers
-olist_sellers_dataset.csv:
-  columns:
-    seller_id: object
-    seller_zip_code_prefix: int64
-    seller_city: object
-    seller_state: object
-  constraints:
-    critical_columns:
-      - seller_id
-    max_null_count: 0
-
-# 7. Product Category Translation
-product_category_name_translation.csv:
-  columns:
-    product_category_name: object
-    product_category_name_english: object
-  constraints:
-    critical_columns:
-      - product_category_name
-      - product_category_name_english
-    max_null_count: 0
-
-# 8. Payments
-olist_order_payments_dataset.csv:
-  columns:
-    order_id: object
-    payment_sequential: int64
-    payment_type: object
-    payment_installments: int64
-    payment_value: float64
-  constraints:
-    critical_columns:
-      - order_id
-    min_max:
-      payment_value:
-        min: 0.0
-        max: 20000.0
-    max_null_count: 0
-
-# 9. Reviews (TARGET)
-olist_order_reviews_dataset.csv:
-  columns:
-    review_id: object
-    order_id: object
-    review_score: int64
-    review_comment_title: object
-    review_comment_message: object
-    review_creation_date: object
-    review_answer_timestamp: object
-  constraints:
-    critical_columns:
-      - review_id
-      - order_id
-      - review_score
-    min_max:
-      review_score:
-        min: 1
-        max: 5
-    max_null_count: 3500
+  order_items:
+    path: artifacts/data_ingestion/olist_order_items_dataset.csv
+    columns:
+      price: float64
+      freight_value: float64
+    ranges:
+      price: [0.0, 20000.0]
+      freight_value: [0.0, 5000.0]
 
 # =========================================
-# TARGET
+# THE "PRODUCTION HANDSHAKE" FEATURES
+# These must match your FastAPI Pydantic Model
 # =========================================
-target_column:
-  name: review_score
-  type: int64
+inference_features:
+  numerical:
+    - carrier_handling_time
+    - delivery_time_days
+    - order_items_count
+    - payment_value
+    - estimated_delivery_days
+    - avg_item_price
+    - product_photos_qty
+    - is_weekend_order
+    - order_hour
+    - product_description_lenght
+    - total_freight
+    - total_price
+    - is_late_delivery
+    - used_installments
+    - payment_installments
+    - order_month
+    - order_day_of_week
+  categorical:
+    - product_category_name
+    - payment_type
+    - customer_state

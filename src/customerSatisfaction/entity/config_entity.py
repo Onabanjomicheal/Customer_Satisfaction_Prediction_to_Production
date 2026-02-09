@@ -45,7 +45,6 @@ class FeatureTransformationConfig:
 
 
 
-# ---------------- MODEL TRAINING ---------------- #
 @dataclass(frozen=True)
 class ModelTrainingConfig:
     root_dir: Path
@@ -54,7 +53,8 @@ class ModelTrainingConfig:
     model_name: str       
     model_path: Path
     all_params: dict
-    mlflow_uri: str = None
+    target_column: str    # <--- YOU MUST ADD THIS LINE HERE
+    mlflow_uri: str = None  # Optional: Add MLflow URI for tracking
 
 # ---------------- MODEL EVALUATION ---------------- #
 @dataclass(frozen=True)

@@ -61,7 +61,7 @@ class ConfigurationManager:
     # ---------------- FEATURE ENGINEERING ---------------- #
     def get_feature_engineering_config(self) -> FeatureEngineeringConfig:
         config = self.config.feature_engineering
-        target_name = self.schema.target_column.name
+        target_name = self.schema.target_configuration.prediction_target
 
         create_directories([config.root_dir])
 
@@ -91,8 +91,10 @@ class ConfigurationManager:
     # ---------------- MODEL TRAINING ---------------- #
     def get_model_training_config(self) -> ModelTrainingConfig:
         config = self.config.model_training
-        model_params = self.params.models  # Pulls the full list of models
-        
+        model_params = self.params.models  
+
+
+        target_col = self.schema.target_configuration.prediction_target
         create_directories([config.root_dir])
 
         return ModelTrainingConfig(
@@ -101,8 +103,10 @@ class ConfigurationManager:
             test_data_path=Path(config.test_data_path),
             model_name=config.model_name,
             model_path=Path(config.model_path),
-            all_params=model_params
+            all_params=model_params,
+            target_column=target_col
         )
+    
     
 
     def get_model_evaluation_config(self) -> ModelEvaluationConfig:

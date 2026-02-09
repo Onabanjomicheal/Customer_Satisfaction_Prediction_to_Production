@@ -9,41 +9,41 @@ feature_transformation:
 # STAGE 05: MULTI-MODEL TRAINING
 # ======================================
 models:
-  # 1. K-Nearest Neighbors
-  KNN:
-    n_neighbors: 5
-
-  # 2. Logistic Regression
-  LogisticRegression:
-    C: 0.001
-    max_iter: 1000
-    class_weight: "balanced"
-    solver: "lbfgs"
-
-  # 3. Random Forest
+  # 1. Random Forest
   RandomForest:
     n_estimators: 140
     max_depth: 10
     class_weight: "balanced"
     random_state: 42
 
-  # 4. XGBoost
-  XGBoost:
-    n_estimators: 300
-    learning_rate: 0.0001
-    max_depth: 12
-    subsample: 0.8
-    colsample_bytree: 0.8
-    objective: "binary:logistic"
+  # 2. Gradient Boosting
+  # Note: Scikit-learn's GBT doesn't have class_weight; 
+  # We use a lower learning rate and deeper trees to capture minority patterns
+  GradientBoosting:
+    n_estimators: 150
+    learning_rate: 0.05
+    max_depth: 5
     random_state: 42
-    eval_metric: "logloss"
-    # Handling your 78/22 imbalance
-    #scale_pos_weight: 3.5
 
-  # 5. Multi-Layer Perceptron (Neural Network)
+  # 3. AdaBoost
+  AdaBoost:
+    n_estimators: 100
+    learning_rate: 0.5
+    random_state: 42
+
+  # 4. CatBoost: Increasing the scale weight to force higher Recall
+  CatBoost:
+    iterations: 150
+    learning_rate: 0.1
+    depth: 6
+    scale_pos_weight: 3.0  # Gives 3x more importance to Class 0
+    verbose: False
+    random_state: 42
+
+  # 5. MLP
   MLP:
-    hidden_layer_sizes: [100]
+    hidden_layer_sizes: [100, 50]
     solver: "adam"
     learning_rate_init: 0.001
-    max_iter: 300
+    max_iter: 20  
     random_state: 42
