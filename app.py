@@ -1,13 +1,14 @@
 import dagshub
 import uvicorn
 import pandas as pd
+import time  # Added for high-resolution timing
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from customerSatisfaction.pipeline.prediction import PredictionPipeline
 from customerSatisfaction import logger
 from prometheus_fastapi_instrumentator import Instrumentator
-from prometheus_client import Counter
+from prometheus_client import Counter, Histogram  # Added Histogram for Alarms
 
 # --- 1. INITIALIZATION ---
 try:
@@ -20,7 +21,19 @@ except Exception as e:
     logger.error(f"DagsHub failed: {e}")
 
 predictor = PredictionPipeline()
+
+# --- ALARM SYSTEM DATA POINTS ---
 PREDICTION_COUNT = Counter("predictions_total", "Predictions by result", ["result"])
+
+# This allows an alarm to trigger if P95 latency > 500ms
+MODEL_LATENCY = Histogram(
+    "model_prediction_duration_seconds",
+    "Inference latency distribution",
+    buckets=[0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+)
+
+# This allows an alarm to trigger if error rates spike
+PREDICTION_ERRORS = Counter("prediction_errors_total", "Total count of failed inferences")
 
 # --- 2. SCHEMA ---
 class CustomerData(BaseModel):
@@ -52,10 +65,17 @@ Instrumentator().instrument(app).expose(app)
 @app.post("/predict")
 async def predict_route(data: CustomerData):
     try:
+        # Start timer for Latency Alarm
+        start_time = time.perf_counter()
+        
         df = pd.DataFrame([data.model_dump()])
         # Extract probability for Class 1 (Satisfied)
         probs = predictor.model.predict_proba(df)[0]
         sat_prob = float(probs[1])
+        
+        # Record Latency
+        inference_time = time.perf_counter() - start_time
+        MODEL_LATENCY.observe(inference_time)
         
         # --- SCENARIO MAPPING ---
         # Scenario A: Operational Action
@@ -90,7 +110,8 @@ async def predict_route(data: CustomerData):
                 "interpretation": interpretation,
                 "recommended_action": action,
                 "risk_level": risk_level,
-                "alert_color": status_code
+                "alert_color": status_code,
+                "latency_s": round(inference_time, 4)
             },
             "scores": {
                 "satisfaction_probability": round(sat_prob, 4),
@@ -98,6 +119,8 @@ async def predict_route(data: CustomerData):
             }
         }
     except Exception as e:
+        # Increment error counter for the Error Alarm
+        PREDICTION_ERRORS.inc()
         logger.error(f"Inference Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
