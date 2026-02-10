@@ -23,6 +23,8 @@ jobs:
     name: Continuous Delivery
     needs: integration
     runs-on: ubuntu-latest
+    outputs:
+      registry: ${{ steps.login-ecr.outputs.registry }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -34,19 +36,18 @@ jobs:
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build & Push Backend
         run: |
-          docker build -f Dockerfile \
-            -t 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest .
-          docker push 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
+          docker build -f Dockerfile -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest .
+          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest
 
       - name: Build & Push Frontend
         run: |
-          docker build -f Dockerfile.frontend \
-            -t 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest .
-          docker push 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
+          docker build -f Dockerfile.frontend -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest .
+          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest
 
   deploy:
     name: Continuous Deployment
@@ -55,6 +56,13 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # Get OIDC credentials again to pass them to the SSH session
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::651045361628:role/github-oidc-ecr-role
+          aws-region: us-east-1
 
       - name: Copy prometheus.yml to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -67,15 +75,22 @@ jobs:
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          # Bridge OIDC credentials to the SSH session
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+          AWS_DEFAULT_REGION: us-east-1
         with:
           host: ${{ secrets.EC2_PUBLIC_IP }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
           script_stop: true
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,AWS_DEFAULT_REGION
           script: |
-            aws ecr get-login-password --region us-east-1 \
-              | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
+            # Login using the bridged OIDC credentials
+            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
 
             docker network create ml-network || true
 
@@ -92,10 +107,9 @@ jobs:
               -e PYTHONPATH=/app/src \
               651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
 
-            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
-              -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-            PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" \
-              -s http://169.254.169.254/latest/meta-data/public-ipv4)
+            # Dynamic IP resolution for frontend
+            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/public-ipv4)
 
             docker run -d -p 8501:8501 --name frontend --network ml-network \
               -e BACKEND_SERVICE_URL=http://$PUBLIC_IP:8080/predict \
