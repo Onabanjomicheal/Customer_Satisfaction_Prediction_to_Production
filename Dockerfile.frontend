@@ -14,7 +14,8 @@ COPY main_ui.py .
 # Streamlit default port
 EXPOSE 8501
 
-# Healthcheck to help AWS monitor the UI status
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+# Updated Healthcheck: Uses Python to avoid 'curl: not found' error
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')" || exit 1
 
 CMD ["streamlit", "run", "main_ui.py", "--server.port=8501", "--server.address=0.0.0.0"]
