@@ -4,10 +4,9 @@ on:
   push:
     branches: [ "main" ]
 
-# This is the critical block for the "Invalid Token" error
 permissions:
-  id-token: write   # This allows the OIDC handshake
-  contents: read    # This allows checking out the code
+  id-token: write
+  contents: read
 
 jobs:
   integration:
@@ -16,6 +15,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
       - name: Lint & Test
         run: echo "Linting and testing repository"
 
@@ -27,23 +27,26 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          # This assumes you have the OIDC provider set up in AWS
-          role-to-assume: arn:aws:iam::651045361628:role/EC2-ECR-Access-Role
+          role-to-assume: arn:aws:iam::651045361628:role/github-oidc-ecr-role
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push
+      - name: Build & Push Backend
         run: |
-          docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest -f Dockerfile .
-          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-backend:latest
-          docker build -t ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest -f Dockerfile.frontend .
-          docker push ${{ steps.login-ecr.outputs.registry }}/customer-satisfaction-frontend:latest
+          docker build -f Dockerfile \
+            -t 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest .
+          docker push 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
+
+      - name: Build & Push Frontend
+        run: |
+          docker build -f Dockerfile.frontend \
+            -t 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest .
+          docker push 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
   deploy:
     name: Continuous Deployment
@@ -71,20 +74,16 @@ jobs:
           port: 22
           script_stop: true
           script: |
-            # 1. Login to ECR using the Instance Role
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
+            aws ecr get-login-password --region us-east-1 \
+              | docker login --username AWS --password-stdin 651045361628.dkr.ecr.us-east-1.amazonaws.com
 
-            # 2. Setup Network
             docker network create ml-network || true
 
-            # 3. Pull latest images
             docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
             docker pull 651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
-            # 4. Cleanup old containers
             docker rm -f backend frontend prometheus grafana node-exporter || true
 
-            # 5. Run Backend (Handshake with MLflow)
             docker run -d -p 8080:8080 --name backend --network ml-network \
               -e MLFLOW_TRACKING_URI=https://dagshub.com/Onabanjomicheal/Customer_Satisfaction_Prediction_to_Production.mlflow \
               -e MLFLOW_TRACKING_USERNAME=Onabanjomicheal \
@@ -93,18 +92,18 @@ jobs:
               -e PYTHONPATH=/app/src \
               651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-backend:latest
 
-            # 6. Run Frontend
-            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-            PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -s http://169.254.169.254/latest/meta-data/public-ipv4)
-            
+            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
+              -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            PUBLIC_IP=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" \
+              -s http://169.254.169.254/latest/meta-data/public-ipv4)
+
             docker run -d -p 8501:8501 --name frontend --network ml-network \
               -e BACKEND_SERVICE_URL=http://$PUBLIC_IP:8080/predict \
               651045361628.dkr.ecr.us-east-1.amazonaws.com/customer-satisfaction-frontend:latest
 
-            # 7. Monitoring Stack
             docker run -d --name node-exporter --network ml-network -p 9100:9100 prom/node-exporter:latest
-            docker run -d -p 9090:9090 --name prometheus --network ml-network -v /home/ec2-user/prometheus.yml:/etc/prometheus/prometheus.yml prom/prometheus:latest
+            docker run -d -p 9090:9090 --name prometheus --network ml-network \
+              -v /home/ec2-user/prometheus.yml:/etc/prometheus/prometheus.yml prom/prometheus:latest
             docker run -d -p 3000:3000 --name grafana --network ml-network grafana/grafana:latest
 
-            # 8. Clean up unused images
             docker image prune -af
